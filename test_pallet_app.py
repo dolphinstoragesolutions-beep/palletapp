@@ -68,8 +68,20 @@ for i in range(rack_types):
 
     # Cross Bar
     st.subheader("Cross Bar")
-    gap = st.number_input("Enter Gap (600–900)", min_value=600, max_value=900, step=10)
-    method = st.number_input("Enter Method Value", min_value=0, step=50)
+    gap = st.number_input(
+    f"Enter Gap (600–900) - Rack {i+1}",
+    min_value=600,
+    max_value=900,
+    step=10,
+    key=f"gap_{i}"
+    )
+
+    method = st.number_input(
+    f"Enter Method Value - Rack {i+1}",
+    min_value=0,
+    step=50,
+    key=f"method_{i}"
+    )
     cth = st.number_input("Thickness", key=f"cth{i}")
 
     rack_data.append({
