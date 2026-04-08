@@ -68,7 +68,7 @@ for i in range(rack_types):
 
     # Cross Bar
     st.subheader("Cross Bar")
-    gap = st.selectbox("Gap", [600, 900], key=f"gap{i}")
+    gap = st.number_input("Enter Gap (600–900)", min_value=600, max_value=900, step=10)
     method = st.selectbox("Method", [200, 500], key=f"method{i}")
     cth = st.number_input("Thickness", key=f"cth{i}")
 
