@@ -9,6 +9,7 @@ import base64
 from PIL import Image as PILImage
 import tempfile
 import os
+import time
 
 # ---------------- FUNCTIONS ---------------- #
 
@@ -111,7 +112,7 @@ def fireworks_animation():
             draw() {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
-                ctx.fillStyle = '#FFA500';
+                ctx.fillStyle = '#FF8C42';
                 ctx.fill();
             }
         }
@@ -180,13 +181,11 @@ def fireworks_animation():
             requestAnimationFrame(animate);
         }
         
-        // Start animation
         for (let i = 0; i < 3; i++) {
             setTimeout(() => createRocket(), i * 500);
         }
         animate();
         
-        // Remove after 8 seconds
         setTimeout(() => {
             const container = document.getElementById('fireworks-container');
             if (container) container.remove();
@@ -210,11 +209,6 @@ def apply_orange_accent(cell):
     cell.alignment = Alignment(horizontal='center', vertical='center')
     return cell
 
-def apply_light_blue_bg(cell):
-    """Apply light blue background for alternating rows"""
-    cell.fill = PatternFill(start_color='E8F0FE', end_color='E8F0FE', fill_type='solid')
-    return cell
-
 def apply_border(cell, border_style='thin'):
     """Apply border to cell"""
     border = Border(
@@ -225,24 +219,6 @@ def apply_border(cell, border_style='thin'):
     )
     cell.border = border
     return cell
-
-def add_logo_to_excel(ws, logo_bytes):
-    """Add logo to Excel worksheet"""
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
-            tmp_file.write(logo_bytes)
-            tmp_file_path = tmp_file.name
-        
-        img = XLImage(tmp_file_path)
-        img.width = 150
-        img.height = 80
-        img.anchor = 'A1'
-        ws.add_image(img)
-        
-        os.unlink(tmp_file_path)
-        return True
-    except Exception as e:
-        return False
 
 # ---------------- UI ---------------- #
 
@@ -276,10 +252,10 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 5px 20px rgba(255,140,66,0.4);
     }
-    .css-1d391kg {
+    .stMetric {
         background-color: rgba(255,255,255,0.1);
         border-radius: 10px;
-        padding: 15px;
+        padding: 10px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -290,7 +266,7 @@ st.markdown('<div class="main-header"><h1>🎆 PROFESSIONAL QUOTATION GENERATOR<
 col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
     st.markdown("### 🖼️ Upload Your Company Logo")
-    uploaded_logo = st.file_uploader("", type=['png', 'jpg', 'jpeg', 'gif'], label_visibility="collapsed")
+    uploaded_logo = st.file_uploader("", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
     
     if uploaded_logo is not None:
         logo_bytes = uploaded_logo.getvalue()
@@ -298,8 +274,6 @@ with col2:
         st.success("✅ Logo uploaded successfully!")
     else:
         st.info("📁 Please upload your company logo (DSS Dolphin Storage Solutions)")
-        # Default placeholder logo text
-        logo_bytes = None
 
 st.divider()
 
@@ -347,7 +321,6 @@ for i in range(int(rack_types)):
             bl = st.number_input(f"Beam Length (mm)", key=f"bl{i}", value=2000)
             bth = st.number_input(f"Beam Thickness (mm)", key=f"bth{i}", value=1.6, format="%.1f")
         
-        # Hidden parameters for calculation
         rack_data.append({
             "module": chr(65+i),
             "name": name, 
@@ -402,16 +375,28 @@ if st.button("🎆 GENERATE PROFESSIONAL QUOTATION", type="primary", use_contain
     
     # ================= ADD LOGO TO EXCEL ================= #
     
+    temp_logo_file = None
+    
     if uploaded_logo is not None:
-        add_logo_to_excel(ws, uploaded_logo.getvalue())
-        logo_row_offset = 3
-    else:
-        logo_row_offset = 0
+        try:
+            # Save logo to a persistent temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
+                tmp_file.write(uploaded_logo.getvalue())
+                temp_logo_file = tmp_file.name
+            
+            # Add image to Excel
+            img = XLImage(temp_logo_file)
+            img.width = 120
+            img.height = 80
+            img.anchor = 'A1'
+            ws.add_image(img)
+            ws.row_dimensions[1].height = 80
+        except Exception as e:
+            st.warning(f"Could not add logo to Excel: {str(e)}")
     
     # ================= HEADER SECTION ================= #
     
-    # Company header
-    if not uploaded_logo:
+    if uploaded_logo is None:
         ws.merge_cells('A1:C1')
         ws.merge_cells('D1:F1')
         
@@ -424,8 +409,8 @@ if st.button("🎆 GENERATE PROFESSIONAL QUOTATION", type="primary", use_contain
         company_cell.value = "DOLPHIN STORAGE SOLUTIONS"
         company_cell.font = Font(name='Segoe UI', size=16, bold=True, color='1B3A5C')
         company_cell.alignment = Alignment(horizontal='right', vertical='center')
+        ws.row_dimensions[1].height = 30
     else:
-        ws.row_dimensions[1].height = 80
         ws.merge_cells('D1:F1')
         company_cell = ws['D1']
         company_cell.value = "DOLPHIN STORAGE SOLUTIONS"
@@ -433,7 +418,7 @@ if st.button("🎆 GENERATE PROFESSIONAL QUOTATION", type="primary", use_contain
         company_cell.alignment = Alignment(horizontal='right', vertical='center')
     
     # Subtitle
-    start_row = 2 if not uploaded_logo else 3
+    start_row = 2 if uploaded_logo is None else 3
     ws.merge_cells(f'A{start_row}:F{start_row}')
     subtitle_cell = ws[f'A{start_row}']
     subtitle_cell.value = "BRIJ INDUSTRIES"
@@ -735,6 +720,13 @@ if st.button("🎆 GENERATE PROFESSIONAL QUOTATION", type="primary", use_contain
     filename = f"{client.replace(' ', '_')}_COMMERCIAL_OFFER.xlsx"
     wb.save(filename)
     
+    # Clean up temporary logo file
+    if temp_logo_file and os.path.exists(temp_logo_file):
+        try:
+            os.unlink(temp_logo_file)
+        except:
+            pass
+    
     st.success("✅ PROFESSIONAL QUOTATION GENERATED SUCCESSFULLY!")
     
     # Download button
@@ -761,4 +753,4 @@ if st.button("🎆 GENERATE PROFESSIONAL QUOTATION", type="primary", use_contain
         st.metric("🎯 GRAND TOTAL", f"₹{grand_total:,.2f}", delta="Including GST")
     
     st.divider()
-    st.info("💡 The Excel file features: Light Orange (#FF8C42) & Dark Blue (#1B3A5C) color scheme | Professional borders | Logo integration | Fireworks animation on generation")
+    st.info("💡 The Excel file features: Light Orange (#FF8C42) & Dark Blue (#1B3A5C) color scheme | Professional borders | Logo integration | Fireworks animation")
