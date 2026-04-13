@@ -1026,12 +1026,12 @@ for i in range(int(rack_types)):
             if upright_section == "Box Section":
                 uw = st.number_input("Width (mm)",  key=f"uw{i}", value=80)
                 ud = st.number_input("Depth (mm)",  key=f"ud{i}", value=60)
-            elif upright_section == "Omega Section 70":
-                uw = 70; ud = 45
-                st.info("70 × 45 mm Omega")
+            elif upright_section == "Omega Section 90":
+                uw = 70; ud = 90
+                st.info("70 × 90 mm Omega")
             else:
-                uw = 90; ud = 45
-                st.info("90 × 45 mm Omega")
+                uw = 70; ud = 110
+                st.info("70 × 110 mm Omega")
             ul = st.number_input("Height (mm)",    key=f"ul{i}", value=3000)
             ut = st.number_input("Thickness (mm)", key=f"ut{i}", value=1.6, format="%.1f")
         with c3:
@@ -1047,8 +1047,21 @@ for i in range(int(rack_types)):
             dth   = st.number_input("Deep Bar Thick (mm)", key=f"dt{i}", value=1.6, format="%.1f")
         with c5:
             st.markdown("**Cross Brace**")
-            method = st.selectbox("Method (mm)", [200, 500], key=f"mt{i}")
-            gap    = st.selectbox("Gap (mm)",    [600, 900], key=f"gp{i}")
+            method = st.number_input(
+            "Method (mm)",
+            min_value=200,
+            max_value=500,
+            step=1,
+            key=f"mt{i}"
+            )
+
+            gap = st.number_input(
+            "Gap (mm)",
+            min_value=600,
+            max_value=900,
+            step=1,
+            key=f"gp{i}"
+            )
             cth    = st.number_input("Cross Thick (mm)", key=f"ct{i}", value=1.6, format="%.1f")
 
         rack_data.append({
