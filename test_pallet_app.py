@@ -5,37 +5,41 @@ from openpyxl.drawing.image import Image as XLImage
 from openpyxl.utils import get_column_letter
 import datetime, tempfile, os, math
 
-# ── PALETTE ──────────────────────────────────────────────────────────────────
-NAVY        = "1E4080"
-NAVY_MID    = "2B5FAD"
-NAVY_LIGHT  = "4A7FC1"
-NAVY_HEADER = "1A3A6C"
-LOGO_BG     = "C8DEFF"   # light periwinkle — logo-friendly, readable
-ORANGE      = "E8722A"
-ORANGE_DARK = "C45A1A"
-ORANGE_SOFT = "FDF0E8"   # very soft peach for alternating rows
-CREAM       = "FFFBF5"
+# ── PALETTE  (Charcoal-Steel + Champagne Gold — clean corporate) ─────────────
+CHARCOAL    = "1C2B36"   # primary dark
+STEEL       = "2E4A5A"   # secondary dark
+SLATE       = "3D6275"   # mid header
+SLATE_LIGHT = "5A8599"   # lighter accent
+GOLD        = "C9A84C"   # champagne gold accent
+GOLD_DARK   = "A0812A"
+GOLD_LIGHT  = "FBF5E6"   # warm cream for alt rows
+CREAM       = "FAFAF8"
 WHITE       = "FFFFFF"
-LIGHT_BLUE  = "EBF3FC"
-TABLE_ALT   = "F4F8FD"
-SILVER      = "BDC8D8"
-DARK_TEXT   = "1A2744"
-MID_TEXT    = "4A5678"
-TEAL        = "1A6B7C"   # accent for accessories section
-TEAL_LIGHT  = "E0F4F7"
-TEAL_DARK   = "154F5C"
+ROW_ALT     = "F2F6F8"   # very light blue-grey
+TABLE_DARK  = "E6EDF1"
+SILVER_LINE = "C8D4DB"
+DARK_TEXT   = "1C2B36"
+MID_TEXT    = "4A6070"
+LIGHT_TEXT  = "7A96A6"
+TEAL        = "1B6B7A"
+TEAL_LIGHT  = "E0F2F5"
+TEAL_DARK   = "124E59"
+RED_ACC     = "C0392B"   # for grand total highlight
 
 # ── BORDER HELPERS ────────────────────────────────────────────────────────────
 def side(color, style="thin"):
     return Side(style=style, color=color)
 
-def b_thin(c=SILVER):
+def b_thin(c=SILVER_LINE):
     s = side(c)
     return Border(left=s, right=s, top=s, bottom=s)
 
-def b_med(c=NAVY_MID):
+def b_med(c=STEEL):
     s = side(c, "medium")
     return Border(left=s, right=s, top=s, bottom=s)
+
+def b_bottom(c=GOLD, style="medium"):
+    return Border(bottom=Side(style=style, color=c))
 
 # ── CELL WRITER ───────────────────────────────────────────────────────────────
 def W(ws, row, col, value=None, bold=False, sz=10, color=DARK_TEXT,
@@ -44,7 +48,7 @@ def W(ws, row, col, value=None, bold=False, sz=10, color=DARK_TEXT,
     c = ws.cell(row=row, column=col)
     if value is not None:
         c.value = value
-    c.font = Font(name="Calibri", size=sz, bold=bold, color=color, italic=italic)
+    c.font = Font(name="Arial", size=sz, bold=bold, color=color, italic=italic)
     c.alignment = Alignment(horizontal=ha, vertical=va, wrap_text=wrap, indent=ind)
     if bg:
         c.fill = PatternFill("solid", fgColor=bg)
@@ -101,7 +105,6 @@ def calc_components(rack):
     main_qty = rack["main_qty"]
     addon_qty= rack["addon_qty"]
 
-    # --- Upright ---
     uwid  = upright_sheet_size(uw, ud)
     u_wt  = weight(ul, uwid, ut)
     u_main_qty  = 4 * main_qty
@@ -109,7 +112,6 @@ def calc_components(rack):
     u_main  = u_wt * u_main_qty
     u_addon = u_wt * u_addon_qty
 
-    # --- Beam ---
     if rack["bt"] == "Pipe Beam":
         bwid = pipe_beam_sheet_size(bh, bw)
     else:
@@ -122,7 +124,6 @@ def calc_components(rack):
     b_main  = b_wt * b_main_qty
     b_addon = b_wt * b_addon_qty
 
-    # --- Deep Bar ---
     dlen  = deep_bar_size(depth)
     d_wt  = weight(dlen, 92, dth)
     d_main_qty  = 4 * main_qty
@@ -130,7 +131,6 @@ def calc_components(rack):
     d_main  = d_wt * d_main_qty
     d_addon = d_wt * d_addon_qty
 
-    # --- Cross Brace ---
     eff_h     = ul - method
     num_cross = int(eff_h // gap)
     clen      = cross_bar_length(dlen, gap, ud)
@@ -176,53 +176,39 @@ def calc_components(rack):
 
 
 def calc_accessories(acc_data, rack_data):
-    """Calculate accessory weights and totals. Returns list of dicts."""
     items = []
-
     total_uprights = sum(4 * r["main_qty"] + 2 * r["addon_qty"] for r in rack_data)
 
-    # Column Guard
     cg_qty = acc_data.get("cg_qty", 0)
     cg_wt  = 3.75
-    items.append({"name": "Column Guard", "spec": "Standard",
-                  "qty": cg_qty, "wt_each": cg_wt,
+    items.append({"name": "Column Guard", "qty": cg_qty, "wt_each": cg_wt,
                   "total_wt": round(cg_qty * cg_wt, 2)})
 
-    # Row Connector
     rc_qty = acc_data.get("rc_qty", 0)
     rc_wt  = 1.0
-    items.append({"name": "Row Connector", "spec": "Standard",
-                  "qty": rc_qty, "wt_each": rc_wt,
+    items.append({"name": "Row Connector", "qty": rc_qty, "wt_each": rc_wt,
                   "total_wt": round(rc_qty * rc_wt, 2)})
 
-    # Row Guards (multiple types)
     for rg in acc_data.get("row_guards", []):
         h, l, qty = rg["h"], rg["l"], rg["qty"]
         wt = (((240 * h * 2 * 7.85) + (240 * l * 2 * 7.85)) * 2) / 1_000_000
-        items.append({"name": "Row Guard", "spec": f"{h}×{l}",
-                      "qty": qty, "wt_each": round(wt, 4),
+        items.append({"name": "Row Guard", "qty": qty, "wt_each": round(wt, 4),
                       "total_wt": round(wt * qty, 2)})
 
-    # Tie Beams (multiple types)
     for tb in acc_data.get("tie_beams", []):
         qty, w, d, l, t = tb["qty"], tb["w"], tb["d"], tb["l"], tb["t"]
         wt = weight(l, upright_sheet_size(w, d), t)
-        items.append({"name": "Tie Beam", "spec": f"{w}×{d}",
-                      "qty": qty, "wt_each": round(wt, 4),
+        items.append({"name": "Tie Beam", "qty": qty, "wt_each": round(wt, 4),
                       "total_wt": round(wt * qty, 2)})
 
-    # Back Pallet Stoppers (multiple types)
     for bps in acc_data.get("bps_list", []):
         qty, l = bps["qty"], bps["l"]
         wt = ((160 * 1.6 * l * 7.85) / 1_000_000) + 0.6
-        items.append({"name": "Back Pallet Stopper", "spec": f"L={l}",
-                      "qty": qty, "wt_each": round(wt, 4),
+        items.append({"name": "Back Pallet Stopper", "qty": qty, "wt_each": round(wt, 4),
                       "total_wt": round(wt * qty, 2)})
 
-    # Base Plate (auto from uprights)
-    items.append({"name": "Base Plate", "spec": "Auto",
-                  "qty": total_uprights, "wt_each": "Included",
-                  "total_wt": "-"})
+    items.append({"name": "Base Plate", "qty": total_uprights,
+                  "wt_each": "Incl.", "total_wt": "-"})
 
     return items
 
@@ -235,148 +221,188 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
                           acc_data=None, logo_path=None):
     ws.sheet_view.showGridLines = False
 
-    col_w = {1:1.5, 2:5, 3:6, 4:28, 5:14, 6:9, 7:16, 8:17, 9:1.5}
+    # columns: A(1)=margin, B(2)=labels, C(3)=values/desc, D-K(4-11)=data, L(12)=margin
+    col_w = {1:1.2, 2:5, 3:6, 4:30, 5:13, 6:9, 7:9, 8:9, 9:9, 10:16, 11:17, 12:1.2}
     for col, w in col_w.items():
         ws.column_dimensions[get_column_letter(col)].width = w
 
     R = 1
 
-    # Top accent bar
-    set_row_h(ws, R, 5); fill(ws, R, 1, 9, ORANGE); R += 1
+    # ── Top gold bar ──────────────────────────────────────────────────────────
+    set_row_h(ws, R, 4); fill(ws, R, 1, 12, GOLD); R += 1
 
-    # ── LOGO + COMPANY NAME ROW — light background so logo shows clearly ──
-    set_row_h(ws, R, 68); fill(ws, R, 1, 9, LOGO_BG)
+    # ── Company logo + name header ────────────────────────────────────────────
+    set_row_h(ws, R, 72); fill(ws, R, 1, 12, CHARCOAL)
     if logo_path and os.path.exists(logo_path):
         try:
             img = XLImage(logo_path)
-            img.width = 200; img.height = 62
+            img.width = 190; img.height = 64
             img.anchor = f"B{R}"
             ws.add_image(img)
         except Exception:
             pass
-    mg(ws, R, 2, R, 8)
-    c = ws.cell(row=R, column=2)
+    mg(ws, R, 3, R, 11)
+    c = ws.cell(row=R, column=3)
     c.value = "BRIJ INDUSTRIES"
-    c.font = Font(name="Calibri", size=22, bold=True, color=NAVY_HEADER)
+    c.font = Font(name="Arial", size=24, bold=True, color=WHITE)
     c.alignment = Alignment(horizontal="center", vertical="center")
-    c.fill = PatternFill("solid", fgColor=LOGO_BG)
+    c.fill = PatternFill("solid", fgColor=CHARCOAL)
     R += 1
 
-    set_row_h(ws, R, 16); fill(ws, R, 1, 9, NAVY_MID)
-    mg(ws, R, 2, R, 8)
+    set_row_h(ws, R, 15); fill(ws, R, 1, 12, STEEL)
+    mg(ws, R, 2, R, 11)
     W(ws, R, 2, "DSS Dolphin Storage Solutions  ·  Modular Mezzanine & Racking Systems",
-      sz=9, color="C8DEFF", bg=NAVY_MID, ha="center")
+      sz=9, color="C0D8E8", bg=STEEL, ha="center", italic=True)
     R += 1
 
-    set_row_h(ws, R, 14); fill(ws, R, 1, 9, NAVY_LIGHT)
-    mg(ws, R, 2, R, 8)
+    set_row_h(ws, R, 13); fill(ws, R, 1, 12, SLATE)
+    mg(ws, R, 2, R, 11)
     W(ws, R, 2, "86/3/1 Road No 7, Mundka Industrial Area, New Delhi – 110041   |   GST: 07AAMFB6403G1ZM   |   +91 9625589161 / 9811096149",
-      sz=8, color=WHITE, bg=NAVY_LIGHT, ha="center")
+      sz=8, color="E8F2F8", bg=SLATE, ha="center")
     R += 1
 
-    set_row_h(ws, R, 13); fill(ws, R, 1, 9, NAVY_LIGHT)
-    mg(ws, R, 2, R, 8)
+    set_row_h(ws, R, 12); fill(ws, R, 1, 12, SLATE)
+    mg(ws, R, 2, R, 11)
     W(ws, R, 2, "brijindustries09@rediffmail.com   |   www.brijindustries.in",
-      sz=8, color="D8EEFF", bg=NAVY_LIGHT, ha="center", italic=True)
+      sz=8, color="B8D4E0", bg=SLATE, ha="center", italic=True)
     R += 1
 
-    set_row_h(ws, R, 5); fill(ws, R, 1, 9, ORANGE); R += 1
+    # ── Gold divider ──────────────────────────────────────────────────────────
+    set_row_h(ws, R, 4); fill(ws, R, 1, 12, GOLD); R += 1
     set_row_h(ws, R, 6); R += 1
 
-    # Offer title
-    set_row_h(ws, R, 24)
-    mg(ws, R, 2, R, 8)
+    # ── COMMERCIAL OFFER title ────────────────────────────────────────────────
+    set_row_h(ws, R, 26)
+    mg(ws, R, 2, R, 11)
     c = ws.cell(row=R, column=2)
-    c.value = "COMMERCIAL OFFER"
-    c.font = Font(name="Calibri", size=13, bold=True, color=WHITE)
+    c.value = "C O M M E R C I A L   O F F E R"
+    c.font = Font(name="Arial", size=13, bold=True, color=WHITE)
     c.alignment = Alignment(horizontal="center", vertical="center")
-    c.fill = PatternFill("solid", fgColor=NAVY_HEADER)
-    c.border = b_med(NAVY_HEADER)
+    c.fill = PatternFill("solid", fgColor=CHARCOAL)
+    c.border = b_med(GOLD)
     R += 1
 
-    def detail_pair(lbl_l, val_l, lbl_r, val_r, bg=LIGHT_BLUE):
+    set_row_h(ws, R, 4); fill(ws, R, 2, 11, GOLD)
+    for col in range(2, 12):
+        ws.cell(row=R, column=col).border = Border(bottom=Side(style="medium", color=GOLD))
+    R += 1
+    set_row_h(ws, R, 6); R += 1
+
+    # ── Detail pairs ──────────────────────────────────────────────────────────
+    def detail_pair(lbl_l, val_l, lbl_r, val_r, bg=ROW_ALT):
         nonlocal R
-        set_row_h(ws, R, 20)
-        fill(ws, R, 2, 8, bg, b_thin())
+        set_row_h(ws, R, 22)
+        fill(ws, R, 2, 11, bg, b_thin())
         mg(ws, R, 2, R, 3)
-        W(ws, R, 2, lbl_l, bold=True, sz=9, color=NAVY_MID, bg=bg, ha="right", bdr=b_thin())
-        mg(ws, R, 4, R, 5)
+        W(ws, R, 2, lbl_l, bold=True, sz=9, color=SLATE, bg=bg, ha="right", bdr=b_thin())
+        mg(ws, R, 4, R, 6)
         W(ws, R, 4, val_l, sz=9, color=DARK_TEXT, bg=bg, ind=1, bdr=b_thin())
-        W(ws, R, 6, lbl_r, bold=True, sz=9, color=NAVY_MID, bg=bg, ha="right", bdr=b_thin())
         mg(ws, R, 7, R, 8)
-        W(ws, R, 7, val_r, sz=9, color=DARK_TEXT, bg=bg, ind=1, bdr=b_thin())
+        W(ws, R, 7, lbl_r, bold=True, sz=9, color=SLATE, bg=bg, ha="right", bdr=b_thin())
+        mg(ws, R, 9, R, 11)
+        W(ws, R, 9, val_r, sz=9, color=DARK_TEXT, bg=bg, ind=1, bdr=b_thin())
         R += 1
 
-    detail_pair("To :",      client,       "Date :",      date_obj.strftime("%d %B %Y"), LIGHT_BLUE)
-    detail_pair("Product :", product,      "Offer No. :", offer_no,                      WHITE)
-    detail_pair("Project :", project_name, "",            "",                             LIGHT_BLUE)
+    detail_pair("To :",      client,       "Date :",      date_obj.strftime("%d %B %Y"), WHITE)
+    detail_pair("Product :", product,      "Offer No. :", offer_no,                      ROW_ALT)
+    detail_pair("Project :", project_name, "",            "",                             WHITE)
 
-    set_row_h(ws, R, 6); R += 1
+    set_row_h(ws, R, 8); R += 1
 
-    # Technical Details section
-    set_row_h(ws, R, 22)
-    mg(ws, R, 2, R, 8)
+    # ── TECHNICAL DETAILS ─────────────────────────────────────────────────────
+    set_row_h(ws, R, 24)
+    mg(ws, R, 2, R, 11)
     c = ws.cell(row=R, column=2)
     c.value = "TECHNICAL DETAILS"
-    c.font = Font(name="Calibri", size=11, bold=True, color=WHITE)
+    c.font = Font(name="Arial", size=10, bold=True, color=WHITE)
     c.alignment = Alignment(horizontal="center", vertical="center")
-    c.fill = PatternFill("solid", fgColor=NAVY_MID)
-    c.border = b_med(NAVY_MID)
+    c.fill = PatternFill("solid", fgColor=STEEL)
+    c.border = b_med(STEEL)
     R += 1
 
-    set_row_h(ws, R, 22)
-    tech_hdrs = [(2,"MODULE","center"),(3,"UPRIGHT\nHEIGHT (mm)","center"),
-                 (4,"BEAM\nLENGTH (mm)","center"),(5,"RACK\nDEPTH (mm)","center"),
-                 (6,"LEVELS","center"),(7,"LOAD / LEVEL\n(kg)","center"),
-                 (8,"PALLETS\n/ LEVEL","center")]
+    # Sub-header gold line
+    set_row_h(ws, R, 3); fill(ws, R, 2, 11, GOLD); R += 1
+
+    set_row_h(ws, R, 28); fill(ws, R, 2, 11, CHARCOAL)
+    tech_hdrs = [
+        (2,  "MODULE",              "center"),
+        (3,  "",                    "center"),
+        (4,  "DESCRIPTION",         "center"),
+        (5,  "HEIGHT\n(mm)",        "center"),
+        (6,  "LENGTH\n(mm)",        "center"),
+        (7,  "DEPTH\n(mm)",         "center"),
+        (8,  "LEVELS",              "center"),
+        (9,  "UDL\n(kg/m²)",        "center"),
+        (10, "LOAD /\nLEVEL (kg)",  "center"),
+        (11, "PALLETS\n/ LEVEL",    "center"),
+    ]
     for col, txt, al in tech_hdrs:
         c = ws.cell(row=R, column=col)
         c.value = txt
-        c.font = Font(name="Calibri", size=8, bold=True, color=WHITE)
-        c.fill = PatternFill("solid", fgColor=NAVY)
+        c.font = Font(name="Arial", size=8, bold=True, color=GOLD)
+        c.fill = PatternFill("solid", fgColor=CHARCOAL)
         c.alignment = Alignment(horizontal=al, vertical="center", wrap_text=True)
-        c.border = b_thin()
+        c.border = b_thin(STEEL)
     R += 1
 
     for idx, rack in enumerate(rack_data):
         comp = calc_components(rack)
-        bg = WHITE if idx % 2 == 0 else TABLE_ALT
-        set_row_h(ws, R, 18)
-        fill(ws, R, 2, 8, bg, b_thin())
-        W(ws, R, 2, f"Module {rack['module']}", bold=True, sz=9, color=NAVY_MID, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 3, rack["ul"], sz=9, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 4, rack["bl"], sz=9, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 5, rack["depth"], sz=9, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 6, rack["levels"], sz=9, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 7, comp["load_per_level"], sz=9, bg=bg, ha="center", bdr=b_thin(), fmt="#,##0")
+        bg = WHITE if idx % 2 == 0 else ROW_ALT
+        set_row_h(ws, R, 20)
+        fill(ws, R, 2, 11, bg, b_thin())
+
+        W(ws, R, 2, f"Module {rack['module']}", bold=True, sz=9, color=STEEL, bg=bg, ha="center", bdr=b_thin())
+        # merge col 3-4 for description
+        mg(ws, R, 3, R, 4)
+        desc = f"{rack['bt']} | {rack['uw']}×{rack['ud']} uprights"
+        W(ws, R, 3, desc, sz=8, color=MID_TEXT, bg=bg, ha="left", bdr=b_thin(), ind=1)
+        W(ws, R, 5, rack["ul"], sz=9, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 6, rack["bl"], sz=9, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 7, rack["depth"], sz=9, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 8, rack["levels"], sz=9, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 9, comp["udl_kg_m2"], sz=9, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 10, comp["load_per_level"], sz=9, bg=bg, ha="center", bdr=b_thin(), fmt="#,##0")
         pallets = max(1, int(rack["bl"] / 1200))
-        W(ws, R, 8, pallets, sz=9, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 11, pallets, sz=9, bg=bg, ha="center", bdr=b_thin())
         R += 1
 
-    set_row_h(ws, R, 6); R += 1
+    # bottom gold line
+    set_row_h(ws, R, 3); fill(ws, R, 2, 11, GOLD); R += 1
+    set_row_h(ws, R, 8); R += 1
 
-    # Scope of Supply
-    set_row_h(ws, R, 22)
-    mg(ws, R, 2, R, 8)
+    # ── SCOPE OF SUPPLY ───────────────────────────────────────────────────────
+    set_row_h(ws, R, 24)
+    mg(ws, R, 2, R, 11)
     c = ws.cell(row=R, column=2)
     c.value = "SCOPE OF SUPPLY"
-    c.font = Font(name="Calibri", size=11, bold=True, color=WHITE)
+    c.font = Font(name="Arial", size=10, bold=True, color=WHITE)
     c.alignment = Alignment(horizontal="center", vertical="center")
-    c.fill = PatternFill("solid", fgColor=ORANGE)
-    c.border = b_med(ORANGE_DARK)
+    c.fill = PatternFill("solid", fgColor=STEEL)
+    c.border = b_med(STEEL)
     R += 1
 
-    set_row_h(ws, R, 26); fill(ws, R, 2, 8, NAVY_HEADER)
-    scope_hdrs = [(2,"SR.","center"),(3,"","center"),(4,"DESCRIPTION","center"),
-                  (5,"TYPE","center"),(6,"QTY","center"),
-                  (7,"UNIT PRICE (₹)","center"),(8,"AMOUNT (₹)","center")]
+    set_row_h(ws, R, 3); fill(ws, R, 2, 11, GOLD); R += 1
+
+    set_row_h(ws, R, 26); fill(ws, R, 2, 11, CHARCOAL)
+    scope_hdrs = [
+        (2,  "SR.",              "center"),
+        (3,  "",                 "center"),
+        (4,  "DESCRIPTION",      "left"),
+        (5,  "TYPE",             "center"),
+        (6,  "",                 "center"),
+        (7,  "",                 "center"),
+        (8,  "QTY",              "center"),
+        (9,  "",                 "center"),
+        (10, "UNIT PRICE (₹)",   "right"),
+        (11, "AMOUNT (₹)",       "right"),
+    ]
     for col, txt, al in scope_hdrs:
         c = ws.cell(row=R, column=col)
         c.value = txt
-        c.font = Font(name="Calibri", size=9, bold=True, color=WHITE)
-        c.fill = PatternFill("solid", fgColor=NAVY_HEADER)
+        c.font = Font(name="Arial", size=8.5, bold=True, color=GOLD)
+        c.fill = PatternFill("solid", fgColor=CHARCOAL)
         c.alignment = Alignment(horizontal=al, vertical="center")
-        c.border = b_thin()
+        c.border = b_thin(STEEL)
     R += 1
 
     total_basic = 0.0
@@ -389,82 +415,83 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
         main_total  = main_price * rack["main_qty"]
         total_basic += main_total
 
-        bg = WHITE if sr % 2 == 1 else TABLE_ALT
-        set_row_h(ws, R, 20); fill(ws, R, 2, 8, bg, b_thin())
+        bg = WHITE if sr % 2 == 1 else ROW_ALT
+        set_row_h(ws, R, 21); fill(ws, R, 2, 11, bg, b_thin())
         W(ws, R, 2, sr, sz=9, color=MID_TEXT, bg=bg, ha="center", bdr=b_thin())
-        mg(ws, R, 3, R, 4)
-        W(ws, R, 3, f"  MODULE {rack['module']}", bold=True, sz=9, color=DARK_TEXT, bg=bg, bdr=b_thin())
-        W(ws, R, 5, "Main Rack", sz=9, color=NAVY_MID, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 6, rack["main_qty"], sz=9, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 7, round(main_price, 2), sz=9, bg=bg, ha="right", fmt="#,##0.00", bdr=b_thin())
-        W(ws, R, 8, round(main_total, 2), bold=True, sz=9, color=NAVY, bg=bg, ha="right", fmt="#,##0.00", bdr=b_thin())
+        mg(ws, R, 3, R, 6)
+        W(ws, R, 3, f"  MODULE {rack['module']}  —  Main Rack", bold=True, sz=9, color=DARK_TEXT, bg=bg, bdr=b_thin())
+        W(ws, R, 7, "Main", sz=8, color=SLATE, bg=bg, ha="center", bdr=b_thin())
+        mg(ws, R, 8, R, 9)
+        W(ws, R, 8, rack["main_qty"], sz=9, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 10, round(main_price, 2), sz=9, bg=bg, ha="right", fmt="#,##0.00", bdr=b_thin())
+        W(ws, R, 11, round(main_total, 2), bold=True, sz=9, color=CHARCOAL, bg=bg, ha="right", fmt="#,##0.00", bdr=b_thin())
         R += 1; sr += 1
 
         if rack["addon_qty"] > 0:
             addon_total  = addon_price * rack["addon_qty"]
             total_basic += addon_total
-            bg = WHITE if sr % 2 == 1 else TABLE_ALT
-            set_row_h(ws, R, 20); fill(ws, R, 2, 8, bg, b_thin())
+            bg = WHITE if sr % 2 == 1 else ROW_ALT
+            set_row_h(ws, R, 21); fill(ws, R, 2, 11, bg, b_thin())
             W(ws, R, 2, sr, sz=9, color=MID_TEXT, bg=bg, ha="center", bdr=b_thin())
-            mg(ws, R, 3, R, 4)
-            W(ws, R, 3, f"  MODULE {rack['module']}", sz=9, color=MID_TEXT, bg=bg, bdr=b_thin())
-            W(ws, R, 5, "Add-on Rack", sz=9, color=ORANGE, bg=bg, ha="center", bdr=b_thin())
-            W(ws, R, 6, rack["addon_qty"], sz=9, bg=bg, ha="center", bdr=b_thin())
-            W(ws, R, 7, round(addon_price, 2), sz=9, bg=bg, ha="right", fmt="#,##0.00", bdr=b_thin())
-            W(ws, R, 8, round(addon_total, 2), bold=True, sz=9, color=NAVY, bg=bg, ha="right", fmt="#,##0.00", bdr=b_thin())
+            mg(ws, R, 3, R, 6)
+            W(ws, R, 3, f"  MODULE {rack['module']}  —  Add-on Rack", sz=9, color=MID_TEXT, bg=bg, bdr=b_thin())
+            W(ws, R, 7, "Add-on", sz=8, color=GOLD_DARK, bg=bg, ha="center", bdr=b_thin())
+            mg(ws, R, 8, R, 9)
+            W(ws, R, 8, rack["addon_qty"], sz=9, bg=bg, ha="center", bdr=b_thin())
+            W(ws, R, 10, round(addon_price, 2), sz=9, bg=bg, ha="right", fmt="#,##0.00", bdr=b_thin())
+            W(ws, R, 11, round(addon_total, 2), bold=True, sz=9, color=CHARCOAL, bg=bg, ha="right", fmt="#,##0.00", bdr=b_thin())
             R += 1; sr += 1
 
-    # ── ACCESSORIES ROWS ─────────────────────────────────────────────────────
+    # ── ACCESSORIES in Scope table ────────────────────────────────────────────
     if acc_data:
         acc_items = calc_accessories(acc_data, rack_data)
         has_priced = any(isinstance(a["total_wt"], (int, float)) for a in acc_items)
         if has_priced:
-            # Accessories sub-header
-            set_row_h(ws, R, 20); fill(ws, R, 2, 8, TEAL)
-            mg(ws, R, 2, R, 8)
+            set_row_h(ws, R, 18); fill(ws, R, 2, 11, TABLE_DARK)
+            mg(ws, R, 2, R, 11)
             c = ws.cell(row=R, column=2)
             c.value = "  ACCESSORIES"
-            c.font = Font(name="Calibri", size=9, bold=True, color=WHITE)
+            c.font = Font(name="Arial", size=8.5, bold=True, color=STEEL)
             c.alignment = Alignment(horizontal="left", vertical="center")
-            c.fill = PatternFill("solid", fgColor=TEAL)
-            c.border = b_med(TEAL_DARK)
+            c.fill = PatternFill("solid", fgColor=TABLE_DARK)
+            c.border = b_thin()
             R += 1
 
             for acc in acc_items:
-                bg = TEAL_LIGHT if sr % 2 == 1 else WHITE
-                set_row_h(ws, R, 18); fill(ws, R, 2, 8, bg, b_thin())
+                bg = GOLD_LIGHT if sr % 2 == 1 else WHITE
+                set_row_h(ws, R, 19); fill(ws, R, 2, 11, bg, b_thin())
                 W(ws, R, 2, sr, sz=9, color=MID_TEXT, bg=bg, ha="center", bdr=b_thin())
-                mg(ws, R, 3, R, 4)
-                W(ws, R, 3, f"  {acc['name']}", sz=9, color=TEAL_DARK, bg=bg, bdr=b_thin())
-                W(ws, R, 5, acc["spec"], sz=9, color=MID_TEXT, bg=bg, ha="center", bdr=b_thin())
-                W(ws, R, 6, acc["qty"], sz=9, bg=bg, ha="center", bdr=b_thin())
-
+                mg(ws, R, 3, R, 7)
+                W(ws, R, 3, f"  {acc['name']}", sz=9, color=DARK_TEXT, bg=bg, bdr=b_thin())
+                mg(ws, R, 8, R, 9)
+                W(ws, R, 8, acc["qty"], sz=9, bg=bg, ha="center", bdr=b_thin())
                 wt_each = acc["wt_each"]
                 if isinstance(wt_each, (int, float)):
-                    W(ws, R, 7, round(wt_each, 4), sz=9, bg=bg, ha="right", fmt="#,##0.000", bdr=b_thin())
+                    W(ws, R, 10, round(wt_each, 3), sz=9, bg=bg, ha="right", fmt="#,##0.000", bdr=b_thin())
                 else:
-                    W(ws, R, 7, str(wt_each), sz=9, bg=bg, ha="center", bdr=b_thin())
-
+                    W(ws, R, 10, str(wt_each), sz=9, bg=bg, ha="center", bdr=b_thin())
                 tot = acc["total_wt"]
                 if isinstance(tot, (int, float)):
-                    W(ws, R, 8, f"—  {tot:.2f} kg", sz=9, color=TEAL_DARK, bg=bg, ha="right", bdr=b_thin())
+                    W(ws, R, 11, f"{tot:.2f} kg", sz=9, color=STEEL, bg=bg, ha="right", bdr=b_thin())
                 else:
-                    W(ws, R, 8, str(tot), sz=9, color=TEAL_DARK, bg=bg, ha="center", bdr=b_thin())
+                    W(ws, R, 11, str(tot), sz=9, color=STEEL, bg=bg, ha="center", bdr=b_thin())
                 R += 1; sr += 1
 
+    set_row_h(ws, R, 3); fill(ws, R, 2, 11, GOLD); R += 1
+
     # Subtotal
-    set_row_h(ws, R, 22); fill(ws, R, 2, 8, LIGHT_BLUE)
-    mg(ws, R, 2, R, 7)
+    set_row_h(ws, R, 24); fill(ws, R, 2, 11, STEEL)
+    mg(ws, R, 2, R, 10)
     c = ws.cell(row=R, column=2)
-    c.value = "SUBTOTAL (BASIC AMOUNT)"
-    c.font = Font(name="Calibri", size=10, bold=True, color=NAVY_HEADER)
+    c.value = "SUBTOTAL — BASIC AMOUNT  (Excl. GST)"
+    c.font = Font(name="Arial", size=10, bold=True, color=WHITE)
     c.alignment = Alignment(horizontal="right", vertical="center", indent=1)
-    c.fill = PatternFill("solid", fgColor=LIGHT_BLUE)
-    c.border = b_med(NAVY_MID)
-    W(ws, R, 8, round(total_basic, 2), bold=True, sz=10, color=NAVY_HEADER,
-      bg=LIGHT_BLUE, ha="right", fmt="#,##0.00", bdr=b_med(NAVY_MID))
+    c.fill = PatternFill("solid", fgColor=STEEL)
+    c.border = b_med(STEEL)
+    W(ws, R, 11, round(total_basic, 2), bold=True, sz=10, color=WHITE,
+      bg=CHARCOAL, ha="right", fmt="#,##0.00", bdr=b_med(CHARCOAL))
     R += 1
-    set_row_h(ws, R, 6); R += 1
+    set_row_h(ws, R, 8); R += 1
 
     # Pricing summary
     gst   = round(total_basic * 0.18, 2)
@@ -472,17 +499,17 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 
     def price_row(lbl, val, bg=WHITE, bold=False, vc=DARK_TEXT, is_text=False):
         nonlocal R
-        set_row_h(ws, R, 20); fill(ws, R, 5, 8, bg)
-        mg(ws, R, 5, R, 7)
-        c_l = ws.cell(row=R, column=5)
+        set_row_h(ws, R, 21); fill(ws, R, 7, 11, bg)
+        mg(ws, R, 7, R, 10)
+        c_l = ws.cell(row=R, column=7)
         c_l.value = lbl
-        c_l.font = Font(name="Calibri", size=10, bold=bold, color=vc)
+        c_l.font = Font(name="Arial", size=9.5, bold=bold, color=vc)
         c_l.alignment = Alignment(horizontal="right", vertical="center", indent=1)
         c_l.fill = PatternFill("solid", fgColor=bg)
         c_l.border = b_thin()
-        c_v = ws.cell(row=R, column=8)
+        c_v = ws.cell(row=R, column=11)
         c_v.value = val
-        c_v.font = Font(name="Calibri", size=10, bold=bold, color=vc, italic=is_text)
+        c_v.font = Font(name="Arial", size=9.5, bold=bold, color=vc, italic=is_text)
         c_v.alignment = Alignment(horizontal="center" if is_text else "right", vertical="center", indent=1)
         c_v.fill = PatternFill("solid", fgColor=bg)
         c_v.border = b_thin()
@@ -490,44 +517,48 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
             c_v.number_format = "#,##0.00"
         R += 1
 
-    price_row("Basic Amount (₹)",    round(total_basic, 2), WHITE, True,  NAVY_HEADER)
-    price_row("Freight Charges",     "Inclusive",           ORANGE_SOFT, False, ORANGE, True)
-    price_row("Erection Charges",    "Inclusive",           ORANGE_SOFT, False, ORANGE, True)
-    price_row("GST @ 18% (₹)",       gst,                   WHITE, False, MID_TEXT)
+    price_row("Basic Amount (₹)",   round(total_basic, 2), ROW_ALT,    True,  CHARCOAL)
+    price_row("Freight Charges",    "Inclusive",           GOLD_LIGHT, False, GOLD_DARK, True)
+    price_row("Erection Charges",   "Inclusive",           GOLD_LIGHT, False, GOLD_DARK, True)
+    price_row("GST @ 18%  (₹)",     gst,                   WHITE,      False, MID_TEXT)
 
-    # Grand Total
-    set_row_h(ws, R, 28); fill(ws, R, 2, 8, ORANGE)
-    mg(ws, R, 2, R, 7)
-    c = ws.cell(row=R, column=2)
-    c.value = "GRAND TOTAL  (Inclusive of GST @ 18%)"
-    c.font = Font(name="Calibri", size=12, bold=True, color=WHITE)
-    c.alignment = Alignment(horizontal="center", vertical="center")
-    c.fill = PatternFill("solid", fgColor=ORANGE)
-    c.border = b_med(ORANGE_DARK)
-    c_gv = ws.cell(row=R, column=8)
-    c_gv.value = grand
-    c_gv.font = Font(name="Calibri", size=12, bold=True, color=WHITE)
-    c_gv.alignment = Alignment(horizontal="right", vertical="center", indent=1)
-    c_gv.fill = PatternFill("solid", fgColor=NAVY_HEADER)
-    c_gv.border = b_med(NAVY_HEADER)
-    c_gv.number_format = '₹ #,##0.00'
-    R += 1
     set_row_h(ws, R, 8); R += 1
 
-    # Terms & Bank
-    set_row_h(ws, R, 20); fill(ws, R, 2, 8, NAVY_MID)
-    mg(ws, R, 2, R, 5)
+    # Grand Total
+    set_row_h(ws, R, 30); fill(ws, R, 2, 11, CHARCOAL)
+    mg(ws, R, 2, R, 10)
+    c = ws.cell(row=R, column=2)
+    c.value = "GRAND TOTAL  ·  Inclusive of GST @ 18%"
+    c.font = Font(name="Arial", size=12, bold=True, color=GOLD)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    c.fill = PatternFill("solid", fgColor=CHARCOAL)
+    c.border = b_med(GOLD)
+    c_gv = ws.cell(row=R, column=11)
+    c_gv.value = grand
+    c_gv.font = Font(name="Arial", size=12, bold=True, color=WHITE)
+    c_gv.alignment = Alignment(horizontal="right", vertical="center", indent=1)
+    c_gv.fill = PatternFill("solid", fgColor=SLATE)
+    c_gv.border = b_med(GOLD)
+    c_gv.number_format = '₹ #,##0.00'
+    R += 1
+
+    set_row_h(ws, R, 4); fill(ws, R, 1, 12, GOLD); R += 1
+    set_row_h(ws, R, 8); R += 1
+
+    # ── Terms & Bank ──────────────────────────────────────────────────────────
+    set_row_h(ws, R, 22); fill(ws, R, 2, 11, STEEL)
+    mg(ws, R, 2, R, 6)
     c = ws.cell(row=R, column=2)
     c.value = "TERMS & CONDITIONS"
-    c.font = Font(name="Calibri", size=10, bold=True, color=WHITE)
+    c.font = Font(name="Arial", size=9, bold=True, color=WHITE)
     c.alignment = Alignment(horizontal="center", vertical="center")
-    c.fill = PatternFill("solid", fgColor=NAVY_MID)
-    mg(ws, R, 6, R, 8)
-    c2 = ws.cell(row=R, column=6)
+    c.fill = PatternFill("solid", fgColor=STEEL)
+    mg(ws, R, 7, R, 11)
+    c2 = ws.cell(row=R, column=7)
     c2.value = "BANK DETAILS"
-    c2.font = Font(name="Calibri", size=10, bold=True, color=WHITE)
+    c2.font = Font(name="Arial", size=9, bold=True, color=WHITE)
     c2.alignment = Alignment(horizontal="center", vertical="center")
-    c2.fill = PatternFill("solid", fgColor=NAVY_MID)
+    c2.fill = PatternFill("solid", fgColor=STEEL)
     R += 1
 
     terms = [
@@ -538,59 +569,59 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
         "Prices valid for 4–5 days from date of offer",
     ]
     bank = [
-        "Account Name : BRIJ INDUSTRIES",
-        "Bank           : ICICI Bank Ltd.",
-        "Account No.  : 135805001108",
-        "IFSC Code     : ICIC0001358",
-        "Branch         : Mundka, New Delhi",
+        "Account Name :  BRIJ INDUSTRIES",
+        "Bank              :  ICICI Bank Ltd.",
+        "Account No.   :  135805001108",
+        "IFSC Code      :  ICIC0001358",
+        "Branch            :  Mundka, New Delhi",
     ]
     for t, b in zip(terms, bank):
-        set_row_h(ws, R, 17)
-        mg(ws, R, 2, R, 5)
+        set_row_h(ws, R, 18)
+        mg(ws, R, 2, R, 6)
         c = ws.cell(row=R, column=2)
-        c.value = f"  • {t}"
-        c.font = Font(name="Calibri", size=8, color=MID_TEXT)
+        c.value = f"  ›  {t}"
+        c.font = Font(name="Arial", size=8.5, color=MID_TEXT)
         c.alignment = Alignment(horizontal="left", vertical="center")
-        c.fill = PatternFill("solid", fgColor=LIGHT_BLUE)
+        c.fill = PatternFill("solid", fgColor=ROW_ALT)
         c.border = b_thin()
-        mg(ws, R, 6, R, 8)
-        c2 = ws.cell(row=R, column=6)
+        mg(ws, R, 7, R, 11)
+        c2 = ws.cell(row=R, column=7)
         c2.value = f"  {b}"
-        c2.font = Font(name="Calibri", size=8, color=MID_TEXT)
+        c2.font = Font(name="Arial", size=8.5, color=MID_TEXT)
         c2.alignment = Alignment(horizontal="left", vertical="center")
-        c2.fill = PatternFill("solid", fgColor=ORANGE_SOFT)
+        c2.fill = PatternFill("solid", fgColor=GOLD_LIGHT)
         c2.border = b_thin()
         R += 1
 
-    set_row_h(ws, R, 6); R += 1
+    set_row_h(ws, R, 8); R += 1
 
     # Signature
-    set_row_h(ws, R, 42)
-    mg(ws, R, 2, R, 5)
+    set_row_h(ws, R, 44)
+    mg(ws, R, 2, R, 6)
     c = ws.cell(row=R, column=2)
     c.value = "Customer Signature & Stamp"
-    c.font = Font(name="Calibri", size=8, color=SILVER, italic=True)
+    c.font = Font(name="Arial", size=8, color=LIGHT_TEXT, italic=True)
     c.alignment = Alignment(horizontal="center", vertical="bottom")
-    c.border = Border(top=Side(style="medium", color=NAVY_MID))
-    mg(ws, R, 6, R, 8)
-    c2 = ws.cell(row=R, column=6)
+    c.border = Border(top=Side(style="medium", color=SLATE))
+    mg(ws, R, 7, R, 11)
+    c2 = ws.cell(row=R, column=7)
     c2.value = "For BRIJ INDUSTRIES"
-    c2.font = Font(name="Calibri", size=8, color=SILVER, italic=True)
+    c2.font = Font(name="Arial", size=8, color=LIGHT_TEXT, italic=True)
     c2.alignment = Alignment(horizontal="center", vertical="bottom")
-    c2.border = Border(top=Side(style="medium", color=NAVY_MID))
+    c2.border = Border(top=Side(style="medium", color=SLATE))
     R += 1
 
-    set_row_h(ws, R, 5); fill(ws, R, 1, 9, ORANGE); R += 1
-    set_row_h(ws, R, 14); fill(ws, R, 1, 9, NAVY_HEADER)
-    mg(ws, R, 2, R, 8)
+    set_row_h(ws, R, 4); fill(ws, R, 1, 12, GOLD); R += 1
+    set_row_h(ws, R, 15); fill(ws, R, 1, 12, CHARCOAL)
+    mg(ws, R, 2, R, 11)
     W(ws, R, 2, "Thank you for considering DSS Dolphin Storage Solutions. We look forward to serving you.",
-      sz=8, color="8AADDD", bg=NAVY_HEADER, ha="center", italic=True)
+      sz=8.5, color="8AADDD", bg=CHARCOAL, ha="center", italic=True)
 
     ws.page_setup.orientation = "portrait"
     ws.page_setup.paperSize = 9
     ws.page_setup.fitToPage = True
     ws.page_setup.fitToWidth = 1
-    ws.print_area = f"A1:{get_column_letter(9)}{R}"
+    ws.print_area = f"A1:{get_column_letter(12)}{R}"
 
     return total_basic, gst, grand
 
@@ -601,32 +632,31 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
     ws.sheet_view.showGridLines = False
 
-    col_w = {1:1.5, 2:4, 3:22, 4:13, 5:11, 6:11,
-             7:12, 8:11, 9:11, 10:14, 11:14, 12:15, 13:1.5}
+    col_w = {1:1.2, 2:4, 3:22, 4:13, 5:11, 6:11,
+             7:12, 8:11, 9:11, 10:14, 11:14, 12:15, 13:1.2}
     for col, w in col_w.items():
         ws.column_dimensions[get_column_letter(col)].width = w
 
     R = 1
-    set_row_h(ws, R, 5); fill(ws, R, 1, 13, ORANGE); R += 1
+    set_row_h(ws, R, 4); fill(ws, R, 1, 13, GOLD); R += 1
 
-    # Header — same light blue logo-friendly background
-    set_row_h(ws, R, 52); fill(ws, R, 1, 13, LOGO_BG)
+    set_row_h(ws, R, 56); fill(ws, R, 1, 13, CHARCOAL)
     mg(ws, R, 2, R, 12)
     c = ws.cell(row=R, column=2)
     c.value = "BRIJ INDUSTRIES  —  BILL OF MATERIALS"
-    c.font = Font(name="Calibri", size=17, bold=True, color=NAVY_HEADER)
+    c.font = Font(name="Arial", size=18, bold=True, color=WHITE)
     c.alignment = Alignment(horizontal="center", vertical="center")
-    c.fill = PatternFill("solid", fgColor=LOGO_BG)
+    c.fill = PatternFill("solid", fgColor=CHARCOAL)
     R += 1
 
-    set_row_h(ws, R, 14); fill(ws, R, 1, 13, NAVY_LIGHT)
+    set_row_h(ws, R, 14); fill(ws, R, 1, 13, STEEL)
     mg(ws, R, 2, R, 12)
     W(ws, R, 2,
       f"DSS Dolphin Storage Solutions  |  Offer No: {offer_no}  |  Customer: {client}  |  Date: {date_obj.strftime('%d %B %Y')}",
-      sz=9, color=WHITE, bg=NAVY_LIGHT, ha="center")
+      sz=9, color="C0D8E8", bg=STEEL, ha="center")
     R += 1
 
-    set_row_h(ws, R, 5); fill(ws, R, 1, 13, ORANGE); R += 1
+    set_row_h(ws, R, 4); fill(ws, R, 1, 13, GOLD); R += 1
     set_row_h(ws, R, 6); R += 1
 
     grand_main_wt  = 0.0
@@ -635,19 +665,21 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
     for rack in rack_data:
         comp = calc_components(rack)
 
-        set_row_h(ws, R, 22)
+        set_row_h(ws, R, 23)
         mg(ws, R, 2, R, 12)
         c = ws.cell(row=R, column=2)
         c.value = (f"  MODULE {rack['module']}   |   Main Racks: {rack['main_qty']}"
                    f"   |   Add-on Racks: {rack['addon_qty']}   |   Levels: {rack['levels']}"
                    f"   |   Cross Method: {rack['method']} mm   |   Gap: {rack['gap']} mm")
-        c.font = Font(name="Calibri", size=11, bold=True, color=WHITE)
+        c.font = Font(name="Arial", size=10, bold=True, color=WHITE)
         c.alignment = Alignment(horizontal="left", vertical="center")
-        c.fill = PatternFill("solid", fgColor=NAVY_MID)
-        c.border = b_med(NAVY_MID)
+        c.fill = PatternFill("solid", fgColor=STEEL)
+        c.border = b_med(STEEL)
         R += 1
 
-        set_row_h(ws, R, 34); fill(ws, R, 2, 12, NAVY_HEADER)
+        set_row_h(ws, R, 3); fill(ws, R, 2, 12, GOLD); R += 1
+
+        set_row_h(ws, R, 34); fill(ws, R, 2, 12, CHARCOAL)
         BOM_H = [
             (2,  "SR.",                  "center"),
             (3,  "COMPONENT",            "left"),
@@ -664,16 +696,16 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
         for col, txt, al in BOM_H:
             c = ws.cell(row=R, column=col)
             c.value = txt
-            c.font = Font(name="Calibri", size=8, bold=True, color=WHITE)
-            c.fill = PatternFill("solid", fgColor=NAVY_HEADER)
+            c.font = Font(name="Arial", size=8, bold=True, color=GOLD)
+            c.fill = PatternFill("solid", fgColor=CHARCOAL)
             c.alignment = Alignment(horizontal=al, vertical="center", wrap_text=True)
-            c.border = b_thin()
+            c.border = b_thin(STEEL)
         R += 1
 
         def comp_row(sr_n, comp_name, section, length, thick, wt_each,
                      qty_main, qty_addon, load_level_val, bg):
             nonlocal R
-            set_row_h(ws, R, 19)
+            set_row_h(ws, R, 20)
             fill(ws, R, 2, 12, bg, b_thin())
             main_tot  = round(wt_each * qty_main,  3)
             addon_tot = round(wt_each * qty_addon, 3)
@@ -693,7 +725,7 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
             for col, val, al, nf in row_vals:
                 c = ws.cell(row=R, column=col)
                 c.value = val
-                c.font = Font(name="Calibri", size=8.5, color=DARK_TEXT)
+                c.font = Font(name="Arial", size=8.5, color=DARK_TEXT)
                 c.alignment = Alignment(horizontal=al, vertical="center")
                 c.fill = PatternFill("solid", fgColor=bg)
                 c.border = b_thin()
@@ -709,26 +741,19 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
         comp_row(1, "Upright / Column",
                  f"{rack['uw']}×{rack['ud']} Box",
                  rack["ul"], rack["ut"], comp["u_wt"],
-                 comp["u_main_qty"], comp["u_addon_qty"],
-                 "—", WHITE)
+                 comp["u_main_qty"], comp["u_addon_qty"], "—", WHITE)
 
         comp_row(2, f"Beam  [2 × {rack['levels']} levels = {comp['beam_per_rack']} per rack]",
-                 beam_sec,
-                 rack["bl"], rack["bth"], comp["b_wt"],
-                 comp["b_main_qty"], comp["b_addon_qty"],
-                 comp["load_per_level"], TABLE_ALT)
+                 beam_sec, rack["bl"], rack["bth"], comp["b_wt"],
+                 comp["b_main_qty"], comp["b_addon_qty"], comp["load_per_level"], ROW_ALT)
 
         comp_row(3, "Deep Bar (Shelf Support)",
-                 "92 mm flat",
-                 int(comp["dlen"]), rack["dth"], comp["d_wt"],
-                 comp["d_main_qty"], comp["d_addon_qty"],
-                 "—", WHITE)
+                 "92 mm flat", int(comp["dlen"]), rack["dth"], comp["d_wt"],
+                 comp["d_main_qty"], comp["d_addon_qty"], "—", WHITE)
 
         comp_row(4, f"Cross Brace  [{comp['num_cross']} crosses × 2 per main, × 1 per addon]",
-                 "92 mm flat",
-                 int(comp["clen"]), rack["cth"], comp["c_wt"],
-                 comp["c_main_qty"], comp["c_addon_qty"],
-                 "—", TABLE_ALT)
+                 "92 mm flat", int(comp["clen"]), rack["cth"], comp["c_wt"],
+                 comp["c_main_qty"], comp["c_addon_qty"], "—", ROW_ALT)
 
         total_m_wt = round(comp["total_main"]  * rack["main_qty"],  2)
         total_a_wt = round(comp["total_addon"] * rack["addon_qty"], 2)
@@ -737,61 +762,57 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
 
         def mod_summary(lbl, v_main, v_addon, bg, bold=False, vc=DARK_TEXT, nf="#,##0.00"):
             nonlocal R
-            set_row_h(ws, R, 20); fill(ws, R, 2, 12, bg)
+            set_row_h(ws, R, 21); fill(ws, R, 2, 12, bg)
             mg(ws, R, 2, R, 9)
             c = ws.cell(row=R, column=2)
             c.value = lbl
-            c.font = Font(name="Calibri", size=9, bold=bold, color=vc)
+            c.font = Font(name="Arial", size=9, bold=bold, color=vc)
             c.alignment = Alignment(horizontal="right", vertical="center", indent=1)
             c.fill = PatternFill("solid", fgColor=bg)
-            c.border = b_med(NAVY_MID) if bold else b_thin()
+            c.border = b_med(STEEL) if bold else b_thin()
             for col, val in [(10, v_main), (11, v_addon)]:
                 cv = ws.cell(row=R, column=col)
                 cv.value = val
-                cv.font = Font(name="Calibri", size=9, bold=bold, color=vc)
+                cv.font = Font(name="Arial", size=9, bold=bold, color=vc)
                 cv.alignment = Alignment(horizontal="right", vertical="center", indent=1)
                 cv.fill = PatternFill("solid", fgColor=bg)
-                cv.border = b_med(NAVY_MID) if bold else b_thin()
+                cv.border = b_med(STEEL) if bold else b_thin()
                 cv.number_format = nf
             R += 1
 
-        mod_summary("Wt — Single Rack (kg)",
-                    comp["total_main"], comp["total_addon"], LIGHT_BLUE)
+        mod_summary("Wt — Single Rack (kg)", comp["total_main"], comp["total_addon"], TABLE_DARK)
         mod_summary(f"Total Wt — All Racks  [Main ×{rack['main_qty']}  |  Add-on ×{rack['addon_qty']}]",
-                    total_m_wt, total_a_wt,
-                    LIGHT_BLUE, bold=True, vc=NAVY_HEADER)
+                    total_m_wt, total_a_wt, TABLE_DARK, bold=True, vc=CHARCOAL)
 
+        set_row_h(ws, R, 4); fill(ws, R, 2, 12, GOLD); R += 1
         set_row_h(ws, R, 10); R += 1
 
-    # ── ACCESSORIES SECTION ───────────────────────────────────────────────────
+    # ── ACCESSORIES ───────────────────────────────────────────────────────────
     if acc_data:
         acc_items = calc_accessories(acc_data, rack_data)
-        set_row_h(ws, R, 5); fill(ws, R, 1, 13, TEAL); R += 1
         set_row_h(ws, R, 22)
         mg(ws, R, 2, R, 12)
         c = ws.cell(row=R, column=2)
         c.value = "ACCESSORIES"
-        c.font = Font(name="Calibri", size=12, bold=True, color=WHITE)
+        c.font = Font(name="Arial", size=11, bold=True, color=WHITE)
         c.alignment = Alignment(horizontal="center", vertical="center")
         c.fill = PatternFill("solid", fgColor=TEAL)
         c.border = b_med(TEAL_DARK)
         R += 1
 
-        # Accessories header
-        set_row_h(ws, R, 30); fill(ws, R, 2, 12, TEAL_DARK)
+        set_row_h(ws, R, 3); fill(ws, R, 2, 12, GOLD); R += 1
+
+        set_row_h(ws, R, 28); fill(ws, R, 2, 12, CHARCOAL)
         ACC_H = [
-            (2, "SR.", "center"),
-            (3, "ITEM", "left"),
-            (4, "SPECIFICATION", "center"),
-            (5, "QTY", "center"),
-            (6, "WT / PCS (kg)", "center"),
+            (2, "SR.", "center"), (3, "ITEM", "left"),
+            (5, "QTY", "center"), (6, "WT / PCS (kg)", "center"),
             (10, "TOTAL WT (kg)", "center"),
         ]
         for col in range(2, 13):
             c = ws.cell(row=R, column=col)
-            c.font = Font(name="Calibri", size=8, bold=True, color=WHITE)
-            c.fill = PatternFill("solid", fgColor=TEAL_DARK)
-            c.border = b_thin()
+            c.font = Font(name="Arial", size=8, bold=True, color=GOLD)
+            c.fill = PatternFill("solid", fgColor=CHARCOAL)
+            c.border = b_thin(STEEL)
         for col, txt, al in ACC_H:
             c = ws.cell(row=R, column=col)
             c.value = txt
@@ -800,45 +821,39 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
 
         for idx, acc in enumerate(acc_items):
             bg = TEAL_LIGHT if idx % 2 == 0 else WHITE
-            set_row_h(ws, R, 19); fill(ws, R, 2, 12, bg, b_thin())
+            set_row_h(ws, R, 20); fill(ws, R, 2, 12, bg, b_thin())
             W(ws, R, 2, idx + 1, sz=9, color=MID_TEXT, bg=bg, ha="center", bdr=b_thin())
-            mg(ws, R, 3, R, 3)
+            mg(ws, R, 3, R, 4)
             W(ws, R, 3, f"  {acc['name']}", sz=9, color=TEAL_DARK, bg=bg, bold=True, bdr=b_thin())
-            mg(ws, R, 4, R, 4)
-            W(ws, R, 4, acc["spec"], sz=9, color=DARK_TEXT, bg=bg, ha="center", bdr=b_thin())
             W(ws, R, 5, acc["qty"], sz=9, bg=bg, ha="center", bdr=b_thin())
-
             wt_each = acc["wt_each"]
             if isinstance(wt_each, (int, float)):
-                W(ws, R, 6, round(wt_each, 4), sz=9, bg=bg, ha="right",
-                  fmt="#,##0.000", bdr=b_thin())
+                W(ws, R, 6, round(wt_each, 4), sz=9, bg=bg, ha="right", fmt="#,##0.000", bdr=b_thin())
             else:
                 W(ws, R, 6, str(wt_each), sz=9, bg=bg, ha="center", bdr=b_thin())
-
             tot = acc["total_wt"]
             if isinstance(tot, (int, float)):
                 W(ws, R, 10, round(tot, 2), sz=9, color=TEAL_DARK, bg=bg,
                   ha="right", bold=True, fmt="#,##0.00", bdr=b_thin())
             else:
-                W(ws, R, 10, str(tot), sz=9, color=TEAL_DARK, bg=bg,
-                  ha="center", bdr=b_thin())
+                W(ws, R, 10, str(tot), sz=9, color=TEAL_DARK, bg=bg, ha="center", bdr=b_thin())
             R += 1
 
         set_row_h(ws, R, 8); R += 1
 
     # Grand tonnage summary
-    set_row_h(ws, R, 6); fill(ws, R, 1, 13, ORANGE); R += 1
-    set_row_h(ws, R, 22)
+    set_row_h(ws, R, 4); fill(ws, R, 1, 13, GOLD); R += 1
+    set_row_h(ws, R, 24)
     mg(ws, R, 2, R, 12)
     c = ws.cell(row=R, column=2)
     c.value = "TOTAL TONNAGE SUMMARY"
-    c.font = Font(name="Calibri", size=12, bold=True, color=WHITE)
+    c.font = Font(name="Arial", size=11, bold=True, color=WHITE)
     c.alignment = Alignment(horizontal="center", vertical="center")
-    c.fill = PatternFill("solid", fgColor=NAVY_HEADER)
-    c.border = b_med(NAVY_HEADER)
+    c.fill = PatternFill("solid", fgColor=CHARCOAL)
+    c.border = b_med(GOLD)
     R += 1
 
-    set_row_h(ws, R, 24); fill(ws, R, 2, 12, NAVY)
+    set_row_h(ws, R, 26); fill(ws, R, 2, 12, CHARCOAL)
     ton_hdrs = [
         (2,  "MODULE",                     "left"),
         (6,  "ALL MAIN RACKS\nWT (kg)",    "center"),
@@ -850,10 +865,10 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
     for col, txt, al in ton_hdrs:
         c = ws.cell(row=R, column=col)
         c.value = txt
-        c.font = Font(name="Calibri", size=8, bold=True, color=WHITE)
-        c.fill = PatternFill("solid", fgColor=NAVY)
+        c.font = Font(name="Arial", size=8, bold=True, color=GOLD)
+        c.fill = PatternFill("solid", fgColor=CHARCOAL)
         c.alignment = Alignment(horizontal=al, vertical="center", wrap_text=True)
-        c.border = b_thin()
+        c.border = b_thin(STEEL)
     R += 1
 
     for idx, rack in enumerate(rack_data):
@@ -861,28 +876,28 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
         m_wt = round(comp["total_main"]  * rack["main_qty"],  2)
         a_wt = round(comp["total_addon"] * rack["addon_qty"], 2)
         comb = round(m_wt + a_wt, 2)
-        bg   = WHITE if idx % 2 == 0 else TABLE_ALT
+        bg   = WHITE if idx % 2 == 0 else ROW_ALT
 
-        set_row_h(ws, R, 19); fill(ws, R, 2, 12, bg, b_thin())
+        set_row_h(ws, R, 20); fill(ws, R, 2, 12, bg, b_thin())
         mg(ws, R, 2, R, 5)
         W(ws, R, 2, f"  MODULE {rack['module']}  (Main ×{rack['main_qty']} | Add-on ×{rack['addon_qty']})",
-          bold=True, sz=9, color=NAVY_MID, bg=bg, bdr=b_thin())
-        W(ws, R, 6,  m_wt,              sz=9, bg=bg, ha="right", fmt="#,##0.00",  bdr=b_thin())
-        W(ws, R, 8,  a_wt,              sz=9, bg=bg, ha="right", fmt="#,##0.00",  bdr=b_thin())
-        W(ws, R, 10, comb,              sz=9, bg=bg, ha="right", fmt="#,##0.00",  bdr=b_thin())
-        W(ws, R, 11, round(comb/1000,3),sz=9, bg=bg, ha="right", fmt="#,##0.000", bdr=b_thin())
+          bold=True, sz=9, color=STEEL, bg=bg, bdr=b_thin())
+        W(ws, R, 6,  m_wt,               sz=9, bg=bg, ha="right", fmt="#,##0.00",  bdr=b_thin())
+        W(ws, R, 8,  a_wt,               sz=9, bg=bg, ha="right", fmt="#,##0.00",  bdr=b_thin())
+        W(ws, R, 10, comb,               sz=9, bg=bg, ha="right", fmt="#,##0.00",  bdr=b_thin())
+        W(ws, R, 11, round(comb/1000,3), sz=9, bg=bg, ha="right", fmt="#,##0.000", bdr=b_thin())
         W(ws, R, 12, comp["load_per_level"], sz=9, bg=bg, ha="center", fmt="#,##0", bdr=b_thin())
         R += 1
 
     grand_comb = round(grand_main_wt + grand_addon_wt, 2)
-    set_row_h(ws, R, 22); fill(ws, R, 2, 12, ORANGE)
+    set_row_h(ws, R, 24); fill(ws, R, 2, 12, CHARCOAL)
     mg(ws, R, 2, R, 5)
     c = ws.cell(row=R, column=2)
     c.value = "  GRAND TOTAL TONNAGE"
-    c.font = Font(name="Calibri", size=10, bold=True, color=WHITE)
+    c.font = Font(name="Arial", size=10, bold=True, color=GOLD)
     c.alignment = Alignment(horizontal="left", vertical="center")
-    c.fill = PatternFill("solid", fgColor=ORANGE)
-    c.border = b_med(ORANGE_DARK)
+    c.fill = PatternFill("solid", fgColor=CHARCOAL)
+    c.border = b_med(GOLD)
     for col, val, nf in [
         (6,  round(grand_main_wt, 2),  "#,##0.00"),
         (8,  round(grand_addon_wt, 2), "#,##0.00"),
@@ -891,18 +906,18 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
     ]:
         cv = ws.cell(row=R, column=col)
         cv.value = val
-        cv.font = Font(name="Calibri", size=10, bold=True, color=WHITE)
+        cv.font = Font(name="Arial", size=10, bold=True, color=WHITE)
         cv.alignment = Alignment(horizontal="right", vertical="center", indent=1)
-        cv.fill = PatternFill("solid", fgColor=NAVY_HEADER)
-        cv.border = b_med(NAVY_HEADER)
+        cv.fill = PatternFill("solid", fgColor=STEEL)
+        cv.border = b_med(GOLD)
         cv.number_format = nf
     R += 1
 
-    set_row_h(ws, R, 5); fill(ws, R, 1, 13, ORANGE); R += 1
-    set_row_h(ws, R, 14); fill(ws, R, 1, 13, NAVY_HEADER)
+    set_row_h(ws, R, 4); fill(ws, R, 1, 13, GOLD); R += 1
+    set_row_h(ws, R, 15); fill(ws, R, 1, 13, CHARCOAL)
     mg(ws, R, 2, R, 12)
     W(ws, R, 2, "BRIJ INDUSTRIES  |  DSS Dolphin Storage Solutions  |  www.brijindustries.in",
-      sz=8, color="8AADDD", bg=NAVY_HEADER, ha="center", italic=True)
+      sz=8.5, color="8AADDD", bg=CHARCOAL, ha="center", italic=True)
 
     ws.page_setup.orientation = "landscape"
     ws.page_setup.paperSize = 9
@@ -940,21 +955,22 @@ st.set_page_config(page_title="DSS Quotation Generator", layout="wide", page_ico
 st.markdown("""
 <style>
 .main-header {
-    background: linear-gradient(135deg, #1A3A6C 0%, #2B5FAD 55%, #E8722A 100%);
-    padding: 26px 36px; border-radius: 14px; color: white;
+    background: linear-gradient(135deg, #1C2B36 0%, #2E4A5A 60%, #C9A84C 100%);
+    padding: 28px 36px; border-radius: 12px; color: white;
     text-align: center; margin-bottom: 24px;
-    box-shadow: 0 8px 28px rgba(0,0,0,0.22);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.28);
 }
-.main-header h1 { margin:0; font-size:1.9rem; letter-spacing:2px; }
-.main-header p  { margin:5px 0 0; font-size:0.92rem; opacity:0.82; }
+.main-header h1 { margin:0; font-size:1.9rem; letter-spacing:3px; font-family:Arial,sans-serif; }
+.main-header p  { margin:6px 0 0; font-size:0.88rem; opacity:0.78; letter-spacing:1px; }
 .stButton > button {
-    background: linear-gradient(135deg, #E8722A, #C45A1A);
-    color: white; font-weight: bold; border: none;
-    border-radius: 10px; padding: 13px 30px;
-    font-size: 1.05rem; transition: all 0.2s ease;
+    background: linear-gradient(135deg, #2E4A5A, #1C2B36);
+    color: #C9A84C; font-weight: bold; border: 2px solid #C9A84C;
+    border-radius: 8px; padding: 13px 30px;
+    font-size: 1.05rem; letter-spacing:1px;
+    transition: all 0.2s ease;
 }
-.stButton > button:hover { transform:translateY(-2px); box-shadow:0 6px 22px rgba(232,114,42,.45); }
-.acc-section { background: #E0F4F7; border-left: 4px solid #1A6B7C;
+.stButton > button:hover { background: #C9A84C; color: #1C2B36; transform:translateY(-2px); }
+.acc-section { background: #E0F2F5; border-left: 4px solid #1B6B7A;
                padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; }
 </style>
 """, unsafe_allow_html=True)
@@ -962,7 +978,7 @@ st.markdown("""
 st.markdown("""
 <div class="main-header">
     <h1>🐬  QUOTATION GENERATOR</h1>
-    <p>BRIJ INDUSTRIES — DSS Dolphin Storage Solutions  |  Modular Mezzanine & Racking Systems</p>
+    <p>BRIJ INDUSTRIES — DSS Dolphin Storage Solutions  ·  Modular Mezzanine & Racking Systems</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -976,7 +992,6 @@ if logo_file:
         logo_path = tf.name
     st.success(f"✅ Logo uploaded: {logo_file.name}")
 
-# Customer Details
 st.subheader("📋 Customer & Offer Details")
 c1, c2, c3 = st.columns(3)
 with c1:
@@ -991,7 +1006,6 @@ with c3:
 
 st.divider()
 
-# Rack Configurations
 st.subheader("🏗️ Rack Configurations")
 rack_types = st.number_input("Number of Rack Types", min_value=1, max_value=10, value=1)
 
@@ -1008,7 +1022,7 @@ for i in range(int(rack_types)):
             st.markdown("**Upright Details**")
             upright_section = st.selectbox("Section Type",
                 ["Box Section", "Omega Section 70", "Omega Section 90"],
-                key=f"us{i}", index=1)  # default to Omega Section 70
+                key=f"us{i}", index=1)
             if upright_section == "Box Section":
                 uw = st.number_input("Width (mm)",  key=f"uw{i}", value=80)
                 ud = st.number_input("Depth (mm)",  key=f"ud{i}", value=60)
@@ -1048,7 +1062,6 @@ for i in range(int(rack_types)):
 
 st.divider()
 
-# ── ACCESSORIES SECTION ───────────────────────────────────────────────────────
 st.subheader("🔩 Accessories")
 st.markdown('<div class="acc-section">Enter quantities for accessories. Leave 0 / empty to skip.</div>',
             unsafe_allow_html=True)
@@ -1059,7 +1072,6 @@ with st.expander("Configure Accessories", expanded=False):
         st.markdown("**Standard Items**")
         cg_qty = st.number_input("Column Guard Qty",  min_value=0, value=0, key="cg")
         rc_qty = st.number_input("Row Connector Qty", min_value=0, value=0, key="rc")
-
     with a2:
         st.markdown("**Row Guards**")
         rg_types_n = st.number_input("Row Guard Types", min_value=0, max_value=5, value=0, key="rgt")
@@ -1092,24 +1104,20 @@ with st.expander("Configure Accessories", expanded=False):
     for j in range(int(bps_types_n)):
         with st.expander(f"BPS Type {j+1}"):
             bc1, bc2 = st.columns(2)
-            bps_qty = bc1.number_input("Qty",    key=f"bpsq{j}", value=1, min_value=0)
+            bps_qty = bc1.number_input("Qty",         key=f"bpsq{j}", value=1, min_value=0)
             bps_l   = bc2.number_input("Length (mm)", key=f"bpsl{j}", value=2000.0, format="%.1f")
             bps_list.append({"qty": bps_qty, "l": bps_l})
 
 acc_data = {
-    "cg_qty": cg_qty,
-    "rc_qty": rc_qty,
-    "row_guards": row_guards,
-    "tie_beams": tie_beams,
-    "bps_list": bps_list,
+    "cg_qty": cg_qty, "rc_qty": rc_qty,
+    "row_guards": row_guards, "tie_beams": tie_beams, "bps_list": bps_list,
 }
 
 st.divider()
 
-# Live preview metrics
 if rack_data:
-    comp0    = calc_components(rack_data[0])
-    all_wt   = sum(
+    comp0  = calc_components(rack_data[0])
+    all_wt = sum(
         calc_components(r)["total_main"]  * r["main_qty"] +
         calc_components(r)["total_addon"] * r["addon_qty"]
         for r in rack_data
