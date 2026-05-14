@@ -274,44 +274,78 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 
     R = 1
 
-    # ── Top orange accent bar ─────────────────────────────────────────────────
-    set_row_h(ws, R, 6); fill(ws, R, 1, 12, ORANGE); R += 1
+    # ══════════════════════════════════════════════════════════════════════════
+    #  HEADER  —  LEFT: DSS brand  |  RIGHT: BRIJ INDUSTRIES + document title
+    #  (reference-image style: brand on left, company/doc on right)
+    # ══════════════════════════════════════════════════════════════════════════
 
-    # ── Logo + Company Header ─────────────────────────────────────────────────
-    set_row_h(ws, R, 26); fill(ws, R, 1, 12, NAVY)
+    # ── Top orange accent bar ─────────────────────────────────────────────────
+    set_row_h(ws, R, 7); fill(ws, R, 1, 12, ORANGE); R += 1
+
+    # ── ROW A  (tall)  ·  DSS left  |  BRIJ INDUSTRIES right ────────────────
+    #    Cols 2-6 = LEFT panel (NAVY)
+    #    Cols 7-11 = RIGHT panel (ORANGE)
+    set_row_h(ws, R, 54)
+
+    # Left panel background
+    for col in range(1, 7):
+        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=NAVY)
+
+    # Right panel background (orange, like reference image's quotation block)
+    for col in range(7, 13):
+        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=ORANGE)
+
+    # Logo (placed top-left of header)
     if logo_path and os.path.exists(logo_path):
         try:
             img = XLImage(logo_path)
-            img.width = 160; img.height = 50
+            img.width = 110; img.height = 42
             img.anchor = f"B{R}"
             ws.add_image(img)
         except Exception:
             pass
-    mg(ws, R, 3, R, 11)
-    c = ws.cell(row=R, column=3)
-    c.value = "BRIJ INDUSTRIES"
-    c.font = Font(name="Arial", size=15, bold=True, color=WHITE)
-    c.alignment = Alignment(horizontal="right", vertical="center")
-    c.fill = PatternFill("solid", fgColor=NAVY)
-    R += 1
 
-    # ── DSS Brand row — BIG, PROMINENT ───────────────────────────────────────
-    set_row_h(ws, R, 52); fill(ws, R, 1, 12, NAVY)
-    mg(ws, R, 2, R, 5)
-    c_dss = ws.cell(row=R, column=2)
+    # LEFT: DSS — large, orange
+    mg(ws, R, 3, R, 6)
+    c_dss = ws.cell(row=R, column=3)
     c_dss.value = "DSS"
-    c_dss.font = Font(name="Arial", size=38, bold=True, color=ORANGE)
+    c_dss.font = Font(name="Arial", size=36, bold=True, color=ORANGE)
     c_dss.alignment = Alignment(horizontal="left", vertical="center", indent=1)
     c_dss.fill = PatternFill("solid", fgColor=NAVY)
-    mg(ws, R, 6, R, 11)
-    c_full = ws.cell(row=R, column=6)
-    c_full.value = "DOLPHIN  STORAGE  SOLUTIONS"
-    c_full.font = Font(name="Arial", size=13, bold=True, color=WHITE)
-    c_full.alignment = Alignment(horizontal="left", vertical="center")
-    c_full.fill = PatternFill("solid", fgColor=NAVY)
+
+    # RIGHT: BRIJ INDUSTRIES — white bold, right-aligned, in orange panel
+    mg(ws, R, 7, R, 11)
+    c_bi = ws.cell(row=R, column=7)
+    c_bi.value = "BRIJ INDUSTRIES"
+    c_bi.font = Font(name="Arial", size=20, bold=True, color=NAVY)
+    c_bi.alignment = Alignment(horizontal="right", vertical="center", indent=1)
+    c_bi.fill = PatternFill("solid", fgColor=ORANGE)
     R += 1
 
-    # ── Contact strip ─────────────────────────────────────────────────────────
+    # ── ROW B  ·  Dolphin Storage Solutions left  |  COMMERCIAL OFFER right ──
+    set_row_h(ws, R, 22)
+
+    for col in range(1, 7):
+        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=NAVY_MID)
+    for col in range(7, 13):
+        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=ORANGE_DARK)
+
+    mg(ws, R, 2, R, 6)
+    c_sub = ws.cell(row=R, column=2)
+    c_sub.value = "DOLPHIN  STORAGE  SOLUTIONS"
+    c_sub.font = Font(name="Arial", size=9, bold=True, color="C8DFF0")
+    c_sub.alignment = Alignment(horizontal="left", vertical="center", indent=2)
+    c_sub.fill = PatternFill("solid", fgColor=NAVY_MID)
+
+    mg(ws, R, 7, R, 11)
+    c_co = ws.cell(row=R, column=7)
+    c_co.value = "C O M M E R C I A L   O F F E R"
+    c_co.font = Font(name="Arial", size=9, bold=True, color=WHITE)
+    c_co.alignment = Alignment(horizontal="right", vertical="center", indent=1)
+    c_co.fill = PatternFill("solid", fgColor=ORANGE_DARK)
+    R += 1
+
+    # ── Contact strip (full width) ────────────────────────────────────────────
     set_row_h(ws, R, 14); fill(ws, R, 1, 12, NAVY_MID)
     mg(ws, R, 2, R, 11)
     W(ws, R, 2,
@@ -319,23 +353,9 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
       sz=7.5, color="A8CCF0", bg=NAVY_MID, ha="center", italic=True)
     R += 1
 
-    # ── Orange divider ────────────────────────────────────────────────────────
+    # ── Orange bottom bar ─────────────────────────────────────────────────────
     set_row_h(ws, R, 5); fill(ws, R, 1, 12, ORANGE); R += 1
-    set_row_h(ws, R, 7); R += 1
-
-    # ── COMMERCIAL OFFER title ────────────────────────────────────────────────
-    set_row_h(ws, R, 28)
-    mg(ws, R, 2, R, 11)
-    c = ws.cell(row=R, column=2)
-    c.value = "C O M M E R C I A L   O F F E R"
-    c.font = Font(name="Arial", size=13, bold=True, color=WHITE)
-    c.alignment = Alignment(horizontal="center", vertical="center")
-    c.fill = PatternFill("solid", fgColor=NAVY)
-    c.border = b_med(ORANGE)
-    R += 1
-
-    set_row_h(ws, R, 5); fill(ws, R, 2, 11, ORANGE); R += 1
-    set_row_h(ws, R, 7); R += 1
+    set_row_h(ws, R, 8); R += 1
 
     # ── Detail pairs ──────────────────────────────────────────────────────────
     def detail_pair(lbl_l, val_l, lbl_r, val_r, bg=ROW_ALT):
@@ -699,29 +719,62 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
         ws.column_dimensions[get_column_letter(col)].width = w
 
     R = 1
-    set_row_h(ws, R, 6); fill(ws, R, 1, 13, ORANGE); R += 1
 
-    # DSS as primary brand in BOM header
-    set_row_h(ws, R, 44); fill(ws, R, 1, 13, NAVY)
-    mg(ws, R, 2, R, 5)
+    # ══════════════════════════════════════════════════════════════════════════
+    #  BOM HEADER  —  LEFT: DSS brand  |  RIGHT: BRIJ INDUSTRIES + BOM title
+    # ══════════════════════════════════════════════════════════════════════════
+    set_row_h(ws, R, 7); fill(ws, R, 1, 13, ORANGE); R += 1
+
+    # ── ROW A  (tall)  ·  DSS left  |  BRIJ INDUSTRIES right (orange panel) ─
+    set_row_h(ws, R, 54)
+    for col in range(1, 8):
+        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=NAVY)
+    for col in range(8, 14):
+        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=ORANGE)
+
+    mg(ws, R, 2, R, 4)
     c = ws.cell(row=R, column=2)
     c.value = "DSS"
-    c.font = Font(name="Arial", size=30, bold=True, color=ORANGE)
+    c.font = Font(name="Arial", size=36, bold=True, color=ORANGE)
     c.alignment = Alignment(horizontal="left", vertical="center", indent=1)
     c.fill = PatternFill("solid", fgColor=NAVY)
-    mg(ws, R, 6, R, 12)
-    c2 = ws.cell(row=R, column=6)
-    c2.value = "DOLPHIN STORAGE SOLUTIONS  —  BILL OF MATERIALS"
-    c2.font = Font(name="Arial", size=14, bold=True, color=WHITE)
-    c2.alignment = Alignment(horizontal="left", vertical="center")
-    c2.fill = PatternFill("solid", fgColor=NAVY)
+
+    mg(ws, R, 8, R, 12)
+    c2 = ws.cell(row=R, column=8)
+    c2.value = "BRIJ INDUSTRIES"
+    c2.font = Font(name="Arial", size=20, bold=True, color=NAVY)
+    c2.alignment = Alignment(horizontal="right", vertical="center", indent=1)
+    c2.fill = PatternFill("solid", fgColor=ORANGE)
     R += 1
 
+    # ── ROW B  ·  Dolphin Storage Solutions left  |  BILL OF MATERIALS right ─
+    set_row_h(ws, R, 22)
+    for col in range(1, 8):
+        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=NAVY_MID)
+    for col in range(8, 14):
+        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=ORANGE_DARK)
+
+    mg(ws, R, 2, R, 7)
+    c = ws.cell(row=R, column=2)
+    c.value = "DOLPHIN  STORAGE  SOLUTIONS"
+    c.font = Font(name="Arial", size=9, bold=True, color="C8DFF0")
+    c.alignment = Alignment(horizontal="left", vertical="center", indent=2)
+    c.fill = PatternFill("solid", fgColor=NAVY_MID)
+
+    mg(ws, R, 8, R, 12)
+    c2 = ws.cell(row=R, column=8)
+    c2.value = "B I L L   O F   M A T E R I A L S"
+    c2.font = Font(name="Arial", size=9, bold=True, color=WHITE)
+    c2.alignment = Alignment(horizontal="right", vertical="center", indent=1)
+    c2.fill = PatternFill("solid", fgColor=ORANGE_DARK)
+    R += 1
+
+    # ── Contact / offer strip (full width) ────────────────────────────────────
     set_row_h(ws, R, 14); fill(ws, R, 1, 13, NAVY_MID)
     mg(ws, R, 2, R, 12)
     W(ws, R, 2,
-      f"BRIJ INDUSTRIES   |   Offer No: {offer_no}   |   Customer: {client}   |   Date: {date_obj.strftime('%d %B %Y')}",
-      sz=9, color="A8CCF0", bg=NAVY_MID, ha="center")
+      f"Offer No: {offer_no}   |   Customer: {client}   |   Date: {date_obj.strftime('%d %B %Y')}   |   86/3/1 Road No 7, Mundka Industrial Area, New Delhi",
+      sz=8, color="A8CCF0", bg=NAVY_MID, ha="center")
     R += 1
 
     set_row_h(ws, R, 5); fill(ws, R, 1, 13, ORANGE); R += 1
