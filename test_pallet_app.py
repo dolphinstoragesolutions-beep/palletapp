@@ -191,7 +191,9 @@ def calc_accessories(acc_data, rack_data):
                   "total_wt": round(rc_qty * rc_wt, 2)})
 
     for idx, rg in enumerate(acc_data.get("row_guards", []), 1):
-        h, l, qty = rg["h"], rg["l"], rg["qty"]
+        l, qty = rg["l"], rg["qty"]
+        # Use fixed height of 400mm for weight calculation (internal only)
+        h = 400
         wt = (((240 * h * 2 * 7.85) + (240 * l * 2 * 7.85)) * 2) / 1_000_000
         name = f"Row Guard (L:{int(l)} mm)"
         items.append({"name": name, "qty": qty, "wt_each": round(wt, 4),
@@ -219,8 +221,7 @@ def calc_accessories(acc_data, rack_data):
 
 
 def calc_accessories_quotation(acc_data, rack_data):
-    """Returns accessories for Quotation sheet — NO Base Plate, skip qty=0 items,
-    clean names (no em dashes, only length in brackets)."""
+    """Returns accessories for Quotation sheet — NO Base Plate, skip qty=0 items."""
     items = []
 
     cg_qty = acc_data.get("cg_qty", 0)
@@ -236,8 +237,9 @@ def calc_accessories_quotation(acc_data, rack_data):
                       "total_wt": round(rc_qty * rc_wt, 2)})
 
     for idx, rg in enumerate(acc_data.get("row_guards", []), 1):
-        h, l, qty = rg["h"], rg["l"], rg["qty"]
+        l, qty = rg["l"], rg["qty"]
         if qty > 0:
+            h = 400
             wt = (((240 * h * 2 * 7.85) + (240 * l * 2 * 7.85)) * 2) / 1_000_000
             name = f"Row Guard (L:{int(l)} mm)"
             items.append({"name": name, "qty": qty, "wt_each": round(wt, 4),
@@ -259,7 +261,6 @@ def calc_accessories_quotation(acc_data, rack_data):
             items.append({"name": name, "qty": qty, "wt_each": round(wt, 4),
                           "total_wt": round(wt * qty, 2)})
 
-    # No Base Plate in quotation
     return items
 
 
@@ -271,20 +272,19 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
                           acc_data=None, logo_path=None):
     ws.sheet_view.showGridLines = False
 
-    # Wider columns for description and amounts to avoid overflow
     col_w = {
-        1: 1.2,   # margin
-        2: 5,     # sr
-        3: 6,     # spacer / type
-        4: 34,    # description  (wider)
-        5: 13,    # height
-        6: 10,    # length
-        7: 10,    # depth
-        8: 10,    # levels
-        9: 10,    # UDL
-        10: 17,   # load/level  (wider)
-        11: 18,   # amount      (wider)
-        12: 1.2   # margin
+        1: 1.2,
+        2: 5,
+        3: 6,
+        4: 34,
+        5: 13,
+        6: 10,
+        7: 10,
+        8: 10,
+        9: 10,
+        10: 17,
+        11: 18,
+        12: 1.2
     }
     for col, w in col_w.items():
         ws.column_dimensions[get_column_letter(col)].width = w
@@ -312,10 +312,14 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     c.fill = PatternFill("solid", fgColor=NAVY)
     R += 1
 
-    set_row_h(ws, R, 15); fill(ws, R, 1, 12, NAVY_MID)
+    # DSS highlighted row
+    set_row_h(ws, R, 18); fill(ws, R, 1, 12, ORANGE)
     mg(ws, R, 2, R, 11)
-    W(ws, R, 2, "DSS Dolphin Storage Solutions  ·  Modular Mezzanine & Racking Systems",
-      sz=9, color=WHITE, bg=NAVY_MID, ha="center", italic=True)
+    c = ws.cell(row=R, column=2)
+    c.value = f"DSS  DOLPHIN  STORAGE  SOLUTIONS   ·   {product}"
+    c.font = Font(name="Arial", size=11, bold=True, color=NAVY)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    c.fill = PatternFill("solid", fgColor=ORANGE)
     R += 1
 
     set_row_h(ws, R, 13); fill(ws, R, 1, 12, NAVY_LIGHT)
@@ -385,12 +389,12 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 
     set_row_h(ws, R, 4); fill(ws, R, 2, 11, ORANGE); R += 1
 
-    # Column headers — white text on navy
+    # Column headers — DESCRIPTION REMOVED, columns re-mapped
     set_row_h(ws, R, 28); fill(ws, R, 2, 11, NAVY)
     tech_hdrs = [
         (2,  "MODULE",              "center"),
-        (3,  "",                    "center"),
-        (4,  "DESCRIPTION",         "center"),
+        (3,  "BEAM TYPE",           "center"),
+        (4,  "UPRIGHT\nSECTION",   "center"),
         (5,  "HEIGHT\n(mm)",        "center"),
         (6,  "LENGTH\n(mm)",        "center"),
         (7,  "DEPTH\n(mm)",         "center"),
@@ -415,9 +419,8 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
         fill(ws, R, 2, 11, bg, b_thin())
 
         W(ws, R, 2, rack['module'], bold=True, sz=9, color=NAVY_MID, bg=bg, ha="center", bdr=b_thin())
-        mg(ws, R, 3, R, 4)
-        desc = f"{rack['bt']} | {rack['uw']}×{rack['ud']} uprights"
-        W(ws, R, 3, desc, sz=8, color=MID_TEXT, bg=bg, ha="left", bdr=b_thin(), ind=1)
+        W(ws, R, 3, rack['bt'], sz=8, color=MID_TEXT, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 4, f"{rack['uw']}×{rack['ud']}", sz=8, color=MID_TEXT, bg=bg, ha="center", bdr=b_thin())
         W(ws, R, 5, rack["ul"], sz=9, bg=bg, ha="center", bdr=b_thin())
         W(ws, R, 6, rack["bl"], sz=9, bg=bg, ha="center", bdr=b_thin())
         W(ws, R, 7, rack["depth"], sz=9, bg=bg, ha="center", bdr=b_thin())
@@ -444,7 +447,6 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 
     set_row_h(ws, R, 4); fill(ws, R, 2, 11, ORANGE); R += 1
 
-    # Header row — white text on navy
     set_row_h(ws, R, 26); fill(ws, R, 2, 11, NAVY)
     scope_hdrs = [
         (2,  "SR.",              "center"),
@@ -504,7 +506,6 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
             W(ws, R, 11, round(addon_total, 2), bold=True, sz=9, color=NAVY, bg=bg, ha="right", fmt="#,##0.00", bdr=b_thin())
             R += 1; sr += 1
 
-    # ── ACCESSORIES in Scope table (quotation version — no Base Plate, no qty=0) ─
     if acc_data:
         acc_items = calc_accessories_quotation(acc_data, rack_data)
         if acc_items:
@@ -526,7 +527,6 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
                 W(ws, R, 3, f"  {acc['name']}", sz=9, color=DARK_TEXT, bg=bg, bdr=b_thin())
                 mg(ws, R, 8, R, 9)
                 W(ws, R, 8, acc["qty"], sz=9, bg=bg, ha="center", bdr=b_thin())
-                # Unit price column — show weight per piece as reference
                 wt_each = acc["wt_each"]
                 if isinstance(wt_each, (int, float)):
                     W(ws, R, 10, round(wt_each, 3), sz=9, bg=bg, ha="right", fmt="#,##0.000", bdr=b_thin())
@@ -541,7 +541,6 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 
     set_row_h(ws, R, 4); fill(ws, R, 2, 11, ORANGE); R += 1
 
-    # Subtotal
     set_row_h(ws, R, 24); fill(ws, R, 2, 11, NAVY_MID)
     mg(ws, R, 2, R, 10)
     c = ws.cell(row=R, column=2)
@@ -555,7 +554,6 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     R += 1
     set_row_h(ws, R, 8); R += 1
 
-    # Pricing summary
     gst   = round(total_basic * 0.18, 2)
     grand = round(total_basic + gst, 2)
 
@@ -586,7 +584,6 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 
     set_row_h(ws, R, 8); R += 1
 
-    # Grand Total
     set_row_h(ws, R, 32); fill(ws, R, 2, 11, NAVY)
     mg(ws, R, 2, R, 10)
     c = ws.cell(row=R, column=2)
@@ -607,7 +604,6 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     set_row_h(ws, R, 5); fill(ws, R, 1, 12, ORANGE); R += 1
     set_row_h(ws, R, 8); R += 1
 
-    # ── Terms & Bank ──────────────────────────────────────────────────────────
     set_row_h(ws, R, 22); fill(ws, R, 2, 11, NAVY_MID)
     mg(ws, R, 2, R, 6)
     c = ws.cell(row=R, column=2)
@@ -657,7 +653,6 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 
     set_row_h(ws, R, 8); R += 1
 
-    # Signature
     set_row_h(ws, R, 44)
     mg(ws, R, 2, R, 6)
     c = ws.cell(row=R, column=2)
@@ -697,7 +692,7 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
     col_w = {
         1: 1.2,
         2: 4,
-        3: 26,    # wider component name
+        3: 26,
         4: 13,
         5: 11,
         6: 11,
@@ -706,7 +701,7 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
         9: 11,
         10: 15,
         11: 15,
-        12: 16,   # wider load/level
+        12: 16,
         13: 1.2
     }
     for col, w in col_w.items():
@@ -724,10 +719,19 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
     c.fill = PatternFill("solid", fgColor=NAVY)
     R += 1
 
+    set_row_h(ws, R, 16); fill(ws, R, 1, 13, ORANGE)
+    mg(ws, R, 2, R, 12)
+    c = ws.cell(row=R, column=2)
+    c.value = "DSS  DOLPHIN  STORAGE  SOLUTIONS"
+    c.font = Font(name="Arial", size=10, bold=True, color=NAVY)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    c.fill = PatternFill("solid", fgColor=ORANGE)
+    R += 1
+
     set_row_h(ws, R, 14); fill(ws, R, 1, 13, NAVY_MID)
     mg(ws, R, 2, R, 12)
     W(ws, R, 2,
-      f"DSS Dolphin Storage Solutions  |  Offer No: {offer_no}  |  Customer: {client}  |  Date: {date_obj.strftime('%d %B %Y')}",
+      f"Offer No: {offer_no}  |  Customer: {client}  |  Date: {date_obj.strftime('%d %B %Y')}",
       sz=9, color=WHITE, bg=NAVY_MID, ha="center")
     R += 1
 
@@ -754,7 +758,6 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
 
         set_row_h(ws, R, 4); fill(ws, R, 2, 12, ORANGE); R += 1
 
-        # BOM header — white text on navy
         set_row_h(ws, R, 34); fill(ws, R, 2, 12, NAVY)
         BOM_H = [
             (2,  "SR.",                  "center"),
@@ -863,7 +866,6 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
         set_row_h(ws, R, 4); fill(ws, R, 2, 12, ORANGE); R += 1
         set_row_h(ws, R, 10); R += 1
 
-    # ── ACCESSORIES ───────────────────────────────────────────────────────────
     if acc_data:
         acc_items = calc_accessories(acc_data, rack_data)
         set_row_h(ws, R, 22)
@@ -878,7 +880,6 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
 
         set_row_h(ws, R, 4); fill(ws, R, 2, 12, ORANGE); R += 1
 
-        # Accessories header — white text
         set_row_h(ws, R, 28); fill(ws, R, 2, 12, NAVY)
         ACC_H = [
             (2,  "SR.",            "center"),
@@ -920,7 +921,6 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
 
         set_row_h(ws, R, 8); R += 1
 
-    # Grand tonnage summary
     set_row_h(ws, R, 5); fill(ws, R, 1, 13, ORANGE); R += 1
     set_row_h(ws, R, 24)
     mg(ws, R, 2, R, 12)
@@ -1027,175 +1027,338 @@ def build_excel(client, product, offer_no, date_obj, project_name,
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STREAMLIT UI
+#  STREAMLIT UI  —  Enhanced Aesthetic
 # ═══════════════════════════════════════════════════════════════════════════════
 st.set_page_config(page_title="DSS Quotation Generator", layout="wide", page_icon="🐬")
 
 st.markdown("""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
   html, body, [class*="css"] { font-family: 'Inter', Arial, sans-serif; }
 
-  .main-header {
-      background: linear-gradient(135deg, #0D2137 0%, #1A3A5C 55%, #E87722 100%);
-      padding: 30px 40px; border-radius: 14px; color: white;
-      text-align: center; margin-bottom: 28px;
-      box-shadow: 0 10px 36px rgba(13,33,55,0.35);
-  }
-  .main-header h1 { margin:0; font-size:2rem; letter-spacing:4px; font-weight:700; }
-  .main-header p  { margin:8px 0 0; font-size:0.87rem; opacity:0.82; letter-spacing:1.2px; }
+  /* ── Main background ── */
+  .stApp { background: #f0f4f8; }
+  section[data-testid="stSidebar"] { display: none; }
 
-  .stButton > button {
-      background: linear-gradient(135deg, #0D2137 0%, #1A3A5C 100%);
-      color: #E87722 !important; font-weight: 700 !important;
-      border: 2px solid #E87722 !important;
-      border-radius: 10px; padding: 14px 32px;
-      font-size: 1.08rem; letter-spacing: 1.2px;
-      transition: all 0.22s ease;
+  /* ── Hero header ── */
+  .hero-wrap {
+      background: linear-gradient(135deg, #0D2137 0%, #1A3A5C 60%, #0D2137 100%);
+      border-radius: 18px;
+      padding: 0;
+      margin-bottom: 28px;
+      box-shadow: 0 12px 40px rgba(13,33,55,0.40);
+      overflow: hidden;
+      position: relative;
   }
-  .stButton > button:hover {
-      background: linear-gradient(135deg, #E87722, #B85C0A) !important;
-      color: #FFFFFF !important; transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(232,119,34,0.45);
+  .hero-top-bar {
+      background: #E87722;
+      height: 6px;
+      width: 100%;
+  }
+  .hero-body {
+      padding: 28px 40px 22px;
+      text-align: center;
+      position: relative;
+  }
+  .hero-title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #FFFFFF;
+      letter-spacing: 5px;
+      margin: 0 0 4px;
+      text-transform: uppercase;
+  }
+  .hero-dss {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #E87722;
+      letter-spacing: 3px;
+      margin: 6px 0 2px;
+      text-transform: uppercase;
+  }
+  .hero-sub {
+      font-size: 0.82rem;
+      color: #8AAECF;
+      letter-spacing: 1.5px;
+      margin: 0;
+      font-weight: 400;
+  }
+  .hero-product-tag {
+      display: inline-block;
+      background: rgba(232,119,34,0.18);
+      border: 1px solid rgba(232,119,34,0.45);
+      color: #E87722;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 2px;
+      padding: 4px 16px;
+      border-radius: 20px;
+      margin-top: 10px;
+      text-transform: uppercase;
+  }
+  .hero-bottom-bar {
+      background: #E87722;
+      height: 4px;
+      width: 100%;
   }
 
-  h2 { color: #0D2137 !important; border-bottom: 3px solid #E87722;
-       padding-bottom: 6px; margin-bottom: 16px !important; }
+  /* ── Section headers ── */
+  h2 {
+      color: #0D2137 !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.5px;
+      border-bottom: 3px solid #E87722;
+      padding-bottom: 8px;
+      margin-bottom: 18px !important;
+  }
 
+  /* ── Cards / containers ── */
+  .section-card {
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 22px 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 12px rgba(13,33,55,0.08);
+      border-left: 5px solid #E87722;
+  }
+
+  /* ── Expanders ── */
   .streamlit-expanderHeader {
-      background: #EAF2FB !important; border-left: 4px solid #E87722 !important;
-      border-radius: 8px !important; font-weight: 600 !important; color: #0D2137 !important;
+      background: #EAF2FB !important;
+      border-left: 4px solid #E87722 !important;
+      border-radius: 10px !important;
+      font-weight: 600 !important;
+      color: #0D2137 !important;
+      font-size: 0.93rem !important;
+  }
+  .streamlit-expanderContent {
+      background: #f8fbff !important;
+      border-radius: 0 0 10px 10px !important;
+      border-left: 4px solid #E8772240 !important;
   }
 
-  [data-testid="metric-container"] {
-      background: #EAF2FB; border: 1px solid #B8CDD8;
-      border-top: 4px solid #E87722;
-      border-radius: 10px; padding: 14px 16px !important;
-      box-shadow: 0 2px 8px rgba(13,33,55,0.10);
+  /* ── Inputs ── */
+  input, select, textarea {
+      border-radius: 8px !important;
   }
-  [data-testid="metric-container"] label { color: #1A3A5C !important; font-weight:600; }
-  [data-testid="metric-container"] [data-testid="metric-value"] {
-      color: #0D2137 !important; font-size: 1.25rem !important; font-weight:700 !important;
-  }
-
-  .acc-section {
-      background: #EAF2FB; border-left: 5px solid #E87722;
-      padding: 10px 16px; border-radius: 8px; margin-bottom: 10px;
-      color: #0D2137; font-weight: 500;
-  }
-
   input:focus, select:focus, textarea:focus {
       border-color: #E87722 !important;
-      box-shadow: 0 0 0 3px rgba(232,119,34,0.20) !important;
+      box-shadow: 0 0 0 3px rgba(232,119,34,0.18) !important;
+  }
+  label { color: #1A3A5C !important; font-weight: 500 !important; font-size: 0.85rem !important; }
+
+  /* ── Metric cards ── */
+  [data-testid="metric-container"] {
+      background: linear-gradient(135deg, #ffffff 0%, #EAF2FB 100%);
+      border: 1px solid #C8DFF0;
+      border-top: 4px solid #E87722;
+      border-radius: 12px;
+      padding: 16px 18px !important;
+      box-shadow: 0 3px 12px rgba(13,33,55,0.09);
+      transition: transform 0.15s ease;
+  }
+  [data-testid="metric-container"]:hover { transform: translateY(-2px); }
+  [data-testid="metric-container"] label { color: #1A3A5C !important; font-weight: 600 !important; font-size: 0.78rem !important; }
+  [data-testid="metric-container"] [data-testid="metric-value"] {
+      color: #0D2137 !important; font-size: 1.18rem !important; font-weight: 800 !important;
   }
 
+  /* ── Generate button ── */
+  .stButton > button {
+      background: linear-gradient(135deg, #0D2137 0%, #1A3A5C 100%);
+      color: #E87722 !important;
+      font-weight: 700 !important;
+      border: 2px solid #E87722 !important;
+      border-radius: 12px;
+      padding: 16px 32px;
+      font-size: 1.08rem;
+      letter-spacing: 1.5px;
+      transition: all 0.22s ease;
+      box-shadow: 0 4px 16px rgba(13,33,55,0.25);
+  }
+  .stButton > button:hover {
+      background: linear-gradient(135deg, #E87722 0%, #B85C0A 100%) !important;
+      color: #FFFFFF !important;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(232,119,34,0.45);
+  }
+
+  /* ── Download button ── */
   [data-testid="stDownloadButton"] button {
-      background: linear-gradient(135deg, #E87722, #B85C0A) !important;
-      color: white !important; border: none !important;
-      border-radius: 10px !important; font-weight: 700 !important;
-      font-size: 1.05rem !important; padding: 13px 28px !important;
-      box-shadow: 0 4px 16px rgba(232,119,34,0.40);
+      background: linear-gradient(135deg, #E87722 0%, #B85C0A 100%) !important;
+      color: white !important;
+      border: none !important;
+      border-radius: 12px !important;
+      font-weight: 700 !important;
+      font-size: 1.05rem !important;
+      padding: 14px 28px !important;
+      box-shadow: 0 5px 18px rgba(232,119,34,0.42);
       transition: all 0.22s ease;
   }
   [data-testid="stDownloadButton"] button:hover {
-      background: linear-gradient(135deg, #ff9940, #E87722) !important;
+      background: linear-gradient(135deg, #ff9940 0%, #E87722 100%) !important;
       transform: translateY(-2px);
+      box-shadow: 0 8px 26px rgba(232,119,34,0.55);
   }
 
-  hr { border-color: #E87722 !important; border-width: 1.5px !important; opacity:0.35; }
+  /* ── Divider ── */
+  hr { border-color: #E87722 !important; border-width: 1.5px !important; opacity: 0.25; }
 
-  .stSuccess { border-left: 4px solid #E87722 !important; background: #FEF0E4 !important; }
-  .stInfo    { border-left: 4px solid #1A3A5C !important; }
+  /* ── Alerts ── */
+  .stSuccess {
+      border-left: 5px solid #E87722 !important;
+      background: #FEF0E4 !important;
+      border-radius: 10px !important;
+  }
+  .stInfo    { border-left: 5px solid #1A3A5C !important; border-radius: 10px !important; }
+  .stError   { border-radius: 10px !important; }
+
+  /* ── Info badge for accessories ── */
+  .acc-banner {
+      background: linear-gradient(90deg, #EAF2FB, #ffffff);
+      border-left: 5px solid #E87722;
+      padding: 12px 18px;
+      border-radius: 10px;
+      margin-bottom: 14px;
+      color: #1A3A5C;
+      font-weight: 500;
+      font-size: 0.88rem;
+  }
+
+  /* ── Live preview bar ── */
+  .preview-bar {
+      background: linear-gradient(135deg, #0D2137 0%, #1A3A5C 100%);
+      border-radius: 12px;
+      padding: 14px 22px;
+      margin: 10px 0 18px;
+      border-bottom: 3px solid #E87722;
+  }
+  .preview-bar p {
+      color: #8AAECF;
+      font-size: 0.78rem;
+      margin: 0 0 2px;
+      letter-spacing: 1px;
+      font-weight: 600;
+      text-transform: uppercase;
+  }
+
+  /* ── Column group labels ── */
+  .col-label {
+      background: #0D2137;
+      color: #E87722;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 10px;
+  }
 </style>
 """, unsafe_allow_html=True)
 
+# ── Hero Header ──────────────────────────────────────────────────────────────
 st.markdown("""
-<div class="main-header">
-    <h1>🐬  QUOTATION GENERATOR</h1>
-    <p>BRIJ INDUSTRIES — DSS Dolphin Storage Solutions  ·  Modular Mezzanine & Racking Systems</p>
+<div class="hero-wrap">
+  <div class="hero-top-bar"></div>
+  <div class="hero-body">
+    <div class="hero-title">🐬 &nbsp; Quotation Generator</div>
+    <div class="hero-dss">DSS &nbsp;·&nbsp; Dolphin Storage Solutions</div>
+    <div class="hero-sub">BRIJ INDUSTRIES &nbsp;·&nbsp; Mundka Industrial Area, New Delhi</div>
+    <div class="hero-product-tag">Modular Mezzanine &amp; Racking Systems</div>
+  </div>
+  <div class="hero-bottom-bar"></div>
 </div>
 """, unsafe_allow_html=True)
 
-with st.expander("🖼️ Upload Company Logo (optional)", expanded=False):
-    logo_file = st.file_uploader("Upload logo PNG/JPG", type=["png","jpg","jpeg"])
+# ── Logo upload ───────────────────────────────────────────────────────────────
+with st.expander("🖼️  Upload Company Logo  (optional)", expanded=False):
+    logo_file = st.file_uploader("Upload logo PNG / JPG", type=["png", "jpg", "jpeg"])
 
 logo_path = None
 if logo_file:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tf:
         tf.write(logo_file.read())
         logo_path = tf.name
-    st.success(f"Logo uploaded: {logo_file.name}")
+    st.success(f"✅  Logo uploaded: {logo_file.name}")
 
-st.subheader("📋 Customer & Offer Details")
-c1, c2, c3 = st.columns(3)
-with c1:
-    client       = st.text_input("Customer Name (M/S)",  "STYLE BAZAAR")
-    product      = st.text_input("Product",              "MODULAR MEZZANINE FLOOR")
-with c2:
-    offer_no     = st.text_input("Offer No",             "DSS-IV/25-26/0712")
-    project_name = st.text_input("Project Name",         "MODULE MEZZANINE FLOOR")
-with c3:
-    date         = st.date_input("Date", datetime.date.today())
-    rate_per_kg  = st.number_input("Rate per KG (Rs.)", value=85.00, min_value=0.0, format="%.2f")
+# ── Customer & Offer Details ──────────────────────────────────────────────────
+st.subheader("📋  Customer & Offer Details")
+with st.container():
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown('<span class="col-label">Client Info</span>', unsafe_allow_html=True)
+        client       = st.text_input("Customer Name (M/S)",  "STYLE BAZAAR")
+        product      = st.text_input("Product",              "MODULAR MEZZANINE FLOOR")
+    with c2:
+        st.markdown('<span class="col-label">Offer Info</span>', unsafe_allow_html=True)
+        offer_no     = st.text_input("Offer No",             "DSS-IV/25-26/0712")
+        project_name = st.text_input("Project Name",         "MODULE MEZZANINE FLOOR")
+    with c3:
+        st.markdown('<span class="col-label">Pricing</span>', unsafe_allow_html=True)
+        date         = st.date_input("Date", datetime.date.today())
+        rate_per_kg  = st.number_input("Rate per KG (Rs.)", value=85.00, min_value=0.0, format="%.2f")
 
 st.divider()
 
-st.subheader("🏗️ Rack Configurations")
+# ── Rack Configurations ───────────────────────────────────────────────────────
+st.subheader("🏗️  Rack Configurations")
 rack_types = st.number_input("Number of Rack Types", min_value=1, max_value=10, value=1)
 
 rack_data = []
 for i in range(int(rack_types)):
-    # Default module name suggestion: Module A, B, C...
     default_name = f"Module {chr(65 + i)}"
-    with st.expander(f"Rack Type {i+1} — Configuration", expanded=(i == 0)):
-        # Manual module name input at the top
+    with st.expander(f"⚙️  Rack Type {i+1}  —  {default_name}", expanded=(i == 0)):
         module_name = st.text_input(
-            "Module Name / Label",
-            value=default_name,
-            key=f"mn{i}",
-            help="Enter a custom name for this module (e.g. 'Module A', 'Ground Floor', 'Block 1')"
+            "Module Name / Label", value=default_name, key=f"mn{i}",
+            help="E.g. 'Module A', 'Ground Floor', 'Block 1'"
         )
 
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
-            st.markdown("**Quantities**")
+            st.markdown('<span class="col-label">Quantities</span>', unsafe_allow_html=True)
             main_qty  = st.number_input("Main Rack Qty",   key=f"mq{i}", value=10, min_value=0)
             addon_qty = st.number_input("Add-on Rack Qty", key=f"aq{i}", value=5,  min_value=0)
             levels    = st.number_input("No. of Levels",   key=f"lv{i}", value=3,  min_value=1)
+
         with c2:
-            st.markdown("**Upright Details**")
-            upright_section = st.selectbox("Section Type",
+            st.markdown('<span class="col-label">Upright</span>', unsafe_allow_html=True)
+            upright_section = st.selectbox(
+                "Section Type",
                 ["Box Section", "Omega Section 70", "Omega Section 90"],
-                key=f"us{i}", index=1)
+                key=f"us{i}", index=1
+            )
             if upright_section == "Box Section":
                 uw = st.number_input("Width (mm)",  key=f"uw{i}", value=80)
                 ud = st.number_input("Depth (mm)",  key=f"ud{i}", value=60)
             elif upright_section == "Omega Section 90":
                 uw = 70; ud = 90
-                st.info("70 x 90 mm Omega")
+                st.info("70 × 90 mm Omega")
             else:
                 uw = 70; ud = 110
-                st.info("70 x 110 mm Omega")
+                st.info("70 × 110 mm Omega")
             ul = st.number_input("Height (mm)",    key=f"ul{i}", value=3000)
             ut = st.number_input("Thickness (mm)", key=f"ut{i}", value=1.6, format="%.1f")
+
         with c3:
-            st.markdown("**Beam Details**")
-            bt  = st.selectbox("Beam Type", ["Pipe Beam","Roll Formed Beam"], key=f"bt{i}")
+            st.markdown('<span class="col-label">Beam</span>', unsafe_allow_html=True)
+            bt  = st.selectbox("Beam Type", ["Pipe Beam", "Roll Formed Beam"], key=f"bt{i}")
             bh  = st.number_input("Height (mm)",    key=f"bh{i}", value=100)
             bw  = st.number_input("Width (mm)",     key=f"bw{i}", value=50)
             bl  = st.number_input("Length (mm)",    key=f"bl{i}", value=2000)
             bth = st.number_input("Thickness (mm)", key=f"bth{i}", value=1.6, format="%.1f")
+
         with c4:
-            st.markdown("**Rack / Deep Bar**")
+            st.markdown('<span class="col-label">Rack / Deep Bar</span>', unsafe_allow_html=True)
             depth = st.number_input("Rack Depth (mm)",     key=f"dp{i}", value=800)
             dth   = st.number_input("Deep Bar Thick (mm)", key=f"dt{i}", value=1.6, format="%.1f")
+
         with c5:
-            st.markdown("**Cross Brace**")
-            method = st.number_input(
-                "Method (mm)", min_value=200, max_value=500, step=1, key=f"mt{i}")
-            gap = st.number_input(
-                "Gap (mm)", min_value=600, max_value=900, step=1, key=f"gp{i}")
-            cth = st.number_input("Cross Thick (mm)", key=f"ct{i}", value=1.6, format="%.1f")
+            st.markdown('<span class="col-label">Cross Brace</span>', unsafe_allow_html=True)
+            method = st.number_input("Method (mm)", min_value=200, max_value=500, step=1, key=f"mt{i}")
+            gap    = st.number_input("Gap (mm)",    min_value=600, max_value=900, step=1, key=f"gp{i}")
+            cth    = st.number_input("Cross Thick (mm)", key=f"ct{i}", value=1.6, format="%.1f")
 
         rack_data.append({
             "module": module_name,
@@ -1208,49 +1371,52 @@ for i in range(int(rack_types)):
 
 st.divider()
 
-st.subheader("🔩 Accessories")
-st.markdown('<div class="acc-section">Enter quantities and dimensions for each accessory type. Leave 0 to skip — zero-quantity items will not appear in the quotation.</div>',
-            unsafe_allow_html=True)
+# ── Accessories ───────────────────────────────────────────────────────────────
+st.subheader("🔩  Accessories")
+st.markdown(
+    '<div class="acc-banner">Enter quantities and dimensions for each accessory. '
+    'Items with <strong>Qty = 0</strong> are automatically excluded from the quotation.</div>',
+    unsafe_allow_html=True
+)
 
-with st.expander("Configure Accessories", expanded=False):
+with st.expander("⚙️  Configure Accessories", expanded=False):
     a1, a2 = st.columns(2)
     with a1:
-        st.markdown("**Standard Items**")
+        st.markdown('<span class="col-label">Standard Items</span>', unsafe_allow_html=True)
         cg_qty = st.number_input("Column Guard Qty",  min_value=0, value=0, key="cg")
         rc_qty = st.number_input("Row Connector Qty", min_value=0, value=0, key="rc")
     with a2:
-        st.markdown("**Row Guards**")
+        st.markdown('<span class="col-label">Row Guards</span>', unsafe_allow_html=True)
         rg_types_n = st.number_input("Row Guard Types", min_value=0, max_value=5, value=0, key="rgt")
 
     row_guards = []
     for j in range(int(rg_types_n)):
-        with st.expander(f"Row Guard — Type {j+1}  (enter dimensions below)"):
-            rg_c1, rg_c2, rg_c3 = st.columns(3)
-            rg_h   = rg_c1.number_input("Height (mm)", key=f"rgh{j}", value=400.0, format="%.1f")
-            rg_l   = rg_c2.number_input("Length (mm)", key=f"rgl{j}", value=2000.0, format="%.1f")
-            rg_qty = rg_c3.number_input("Qty",         key=f"rgq{j}", value=1, min_value=0)
-            st.caption(f"Row Guard Type {j+1}:  H = {rg_h:.0f} mm  |  L = {rg_l:.0f} mm  |  Qty = {rg_qty}")
-            row_guards.append({"h": rg_h, "l": rg_l, "qty": rg_qty})
+        with st.expander(f"Row Guard — Type {j+1}"):
+            rg_c1, rg_c2 = st.columns(2)
+            rg_l   = rg_c1.number_input("Length (mm)", key=f"rgl{j}", value=2000.0, format="%.1f")
+            rg_qty = rg_c2.number_input("Qty",         key=f"rgq{j}", value=1, min_value=0)
+            st.caption(f"Row Guard Type {j+1}:  L = {rg_l:.0f} mm  |  Qty = {rg_qty}")
+            # Store with default h=400 for internal weight calc
+            row_guards.append({"h": 400, "l": rg_l, "qty": rg_qty})
 
-    st.markdown("**Tie Beams**")
+    st.markdown('<span class="col-label">Tie Beams</span>', unsafe_allow_html=True)
     tb_types_n = st.number_input("Tie Beam Types", min_value=0, max_value=5, value=0, key="tbt")
     tie_beams = []
     for j in range(int(tb_types_n)):
-        with st.expander(f"Tie Beam — Type {j+1}  (enter dimensions below)"):
-            tc1, tc2, tc3, tc4, tc5 = st.columns(5)
+        with st.expander(f"Tie Beam — Type {j+1}"):
+            tc1, tc2, tc3 = st.columns(3)
             tb_qty = tc1.number_input("Qty",       key=f"tbq{j}", value=1, min_value=0)
-            tb_w   = tc2.number_input("Width",     key=f"tbw{j}", value=80.0, format="%.1f")
-            tb_d   = tc3.number_input("Depth",     key=f"tbd{j}", value=60.0, format="%.1f")
-            tb_l   = tc4.number_input("Length",    key=f"tbl{j}", value=2000.0, format="%.1f")
-            tb_t   = tc5.number_input("Thickness", key=f"tbt2{j}", value=1.6, format="%.1f")
-            st.caption(f"Tie Beam Type {j+1}:  {tb_w:.0f}x{tb_d:.0f}  L = {tb_l:.0f} mm  |  t = {tb_t} mm  |  Qty = {tb_qty}")
-            tie_beams.append({"qty": tb_qty, "w": tb_w, "d": tb_d, "l": tb_l, "t": tb_t})
+            tb_l   = tc2.number_input("Length (mm)", key=f"tbl{j}", value=2000.0, format="%.1f")
+            tb_t   = tc3.number_input("Thickness (mm)", key=f"tbt2{j}", value=1.6, format="%.1f")
+            st.caption(f"Tie Beam Type {j+1}:  L = {tb_l:.0f} mm  |  t = {tb_t} mm  |  Qty = {tb_qty}")
+            # Use standard 80×60 section for weight; user doesn't need to enter it
+            tie_beams.append({"qty": tb_qty, "w": 80.0, "d": 60.0, "l": tb_l, "t": tb_t})
 
-    st.markdown("**Back Pallet Stoppers**")
+    st.markdown('<span class="col-label">Back Pallet Stoppers</span>', unsafe_allow_html=True)
     bps_types_n = st.number_input("BPS Types", min_value=0, max_value=5, value=0, key="bpst")
     bps_list = []
     for j in range(int(bps_types_n)):
-        with st.expander(f"Back Pallet Stopper — Type {j+1}  (enter dimensions below)"):
+        with st.expander(f"Back Pallet Stopper — Type {j+1}"):
             bc1, bc2 = st.columns(2)
             bps_qty = bc1.number_input("Qty",         key=f"bpsq{j}", value=1, min_value=0)
             bps_l   = bc2.number_input("Length (mm)", key=f"bpsl{j}", value=2000.0, format="%.1f")
@@ -1264,6 +1430,7 @@ acc_data = {
 
 st.divider()
 
+# ── Live Preview Metrics ───────────────────────────────────────────────────────
 if rack_data:
     comp0  = calc_components(rack_data[0])
     all_wt = sum(
@@ -1275,19 +1442,21 @@ if rack_data:
     prev_gst   = prev_tot * 0.18
     prev_grand = prev_tot + prev_gst
 
-    p1,p2,p3,p4,p5,p6 = st.columns(6)
-    p1.metric("Main Rack Wt (First Module)",  f"{comp0['total_main']:.3f} kg")
-    p2.metric("Add-on Rack Wt (First Module)",f"{comp0['total_addon']:.3f} kg")
-    p3.metric("Total Tonnage",                f"{all_wt/1000:.3f} MT")
-    p4.metric("Basic Amount",                 f"Rs. {prev_tot:,.0f}")
-    p5.metric("GST (18%)",                    f"Rs. {prev_gst:,.0f}")
-    p6.metric("Grand Total",                  f"Rs. {prev_grand:,.0f}")
+    st.markdown('<div class="preview-bar"><p>📊 &nbsp; Live Estimate Preview</p></div>', unsafe_allow_html=True)
+    p1, p2, p3, p4, p5, p6 = st.columns(6)
+    p1.metric("Main Rack Wt (Module 1)",   f"{comp0['total_main']:.3f} kg")
+    p2.metric("Add-on Rack Wt (Module 1)", f"{comp0['total_addon']:.3f} kg")
+    p3.metric("Total Tonnage",             f"{all_wt/1000:.3f} MT")
+    p4.metric("Basic Amount",              f"Rs. {prev_tot:,.0f}")
+    p5.metric("GST  (18%)",                f"Rs. {prev_gst:,.0f}")
+    p6.metric("Grand Total",               f"Rs. {prev_grand:,.0f}")
 
 st.divider()
 
-if st.button("🐬  GENERATE QUOTATION + BOM", type="primary", use_container_width=True):
-    safe  = client.replace(" ","_").replace("/","-")
-    fname = f"{safe}_Offer_{offer_no.replace('/','-')}.xlsx"
+# ── Generate Button ───────────────────────────────────────────────────────────
+if st.button("🐬  GENERATE  QUOTATION  +  BOM", type="primary", use_container_width=True):
+    safe  = client.replace(" ", "_").replace("/", "-")
+    fname = f"{safe}_Offer_{offer_no.replace('/', '-')}.xlsx"
     out   = os.path.join(tempfile.gettempdir(), fname)
 
     try:
@@ -1296,10 +1465,10 @@ if st.button("🐬  GENERATE QUOTATION + BOM", type="primary", use_container_wid
             rack_data, rate_per_kg, acc_data=acc_data,
             out_path=out, logo_path=logo_path
         )
-        st.success("Workbook ready — Commercial Offer + Bill of Materials sheets generated.")
+        st.success("✅  Workbook ready — Commercial Offer + Bill of Materials sheets generated.")
         with open(out, "rb") as f:
             st.download_button(
-                "⬇️  DOWNLOAD EXCEL (Quotation + BOM)",
+                "⬇️  DOWNLOAD  EXCEL  (Quotation + BOM)",
                 data=f, file_name=fname,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
@@ -1309,5 +1478,5 @@ if st.button("🐬  GENERATE QUOTATION + BOM", type="primary", use_container_wid
         r2.metric("GST (18%)",    f"Rs. {gst:,.2f}")
         r3.metric("Grand Total",  f"Rs. {grand:,.2f}", delta="Incl. GST")
     except Exception as e:
-        st.error(f"Error generating file: {e}")
+        st.error(f"❌  Error generating file: {e}")
         raise
