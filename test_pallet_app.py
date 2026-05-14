@@ -5,7 +5,7 @@ from openpyxl.drawing.image import Image as XLImage
 from openpyxl.utils import get_column_letter
 import datetime, tempfile, os, math
 
-# ── PALETTE  (Deep Navy Blue + Vibrant Orange — Professional) ─────────────────
+# ── PALETTE ───────────────────────────────────────────────────────────────────
 NAVY        = "0D2137"
 NAVY_MID    = "1A3A5C"
 NAVY_LIGHT  = "1E4D78"
@@ -22,9 +22,6 @@ SILVER_LINE = "B8CFE0"
 DARK_TEXT   = "0D2137"
 MID_TEXT    = "2E5070"
 LIGHT_TEXT  = "6A8FAA"
-TEAL        = "1B6B7A"
-TEAL_LIGHT  = "E0F2F5"
-TEAL_DARK   = "124E59"
 
 # ── BORDER HELPERS ────────────────────────────────────────────────────────────
 def side(color, style="thin"):
@@ -70,7 +67,7 @@ def mg(ws, r1, c1, r2, c2):
 def set_row_h(ws, r, h):
     ws.row_dimensions[r].height = h
 
-# ── PHYSICS — FORMULAS ───────────────────────────────────────────────────────
+# ── PHYSICS ───────────────────────────────────────────────────────────────────
 def upright_sheet_size(width, depth):
     return width + depth + width + 15
 
@@ -176,7 +173,6 @@ def calc_components(rack):
 
 
 def calc_accessories(acc_data, rack_data):
-    """Returns accessories for BOM sheet (includes Base Plate, all items)."""
     items = []
     total_uprights = sum(4 * r["main_qty"] + 2 * r["addon_qty"] for r in rack_data)
 
@@ -192,7 +188,6 @@ def calc_accessories(acc_data, rack_data):
 
     for idx, rg in enumerate(acc_data.get("row_guards", []), 1):
         l, qty = rg["l"], rg["qty"]
-        # Use fixed height of 400mm for weight calculation (internal only)
         h = 400
         wt = (((240 * h * 2 * 7.85) + (240 * l * 2 * 7.85)) * 2) / 1_000_000
         name = f"Row Guard (L:{int(l)} mm)"
@@ -213,7 +208,6 @@ def calc_accessories(acc_data, rack_data):
         items.append({"name": name, "qty": qty, "wt_each": round(wt, 4),
                       "total_wt": round(wt * qty, 2)})
 
-    # Base Plate included in BOM only
     items.append({"name": "Base Plate", "qty": total_uprights,
                   "wt_each": "Incl.", "total_wt": "-"})
 
@@ -221,7 +215,6 @@ def calc_accessories(acc_data, rack_data):
 
 
 def calc_accessories_quotation(acc_data, rack_data):
-    """Returns accessories for Quotation sheet — NO Base Plate, skip qty=0 items."""
     items = []
 
     cg_qty = acc_data.get("cg_qty", 0)
@@ -273,33 +266,23 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     ws.sheet_view.showGridLines = False
 
     col_w = {
-        1: 1.2,
-        2: 5,
-        3: 6,
-        4: 34,
-        5: 13,
-        6: 10,
-        7: 10,
-        8: 10,
-        9: 10,
-        10: 17,
-        11: 18,
-        12: 1.2
+        1: 1.2, 2: 5, 3: 6, 4: 34, 5: 13,
+        6: 10, 7: 10, 8: 10, 9: 10, 10: 17, 11: 18, 12: 1.2
     }
     for col, w in col_w.items():
         ws.column_dimensions[get_column_letter(col)].width = w
 
     R = 1
 
-    # ── Top orange bar ────────────────────────────────────────────────────────
-    set_row_h(ws, R, 5); fill(ws, R, 1, 12, ORANGE); R += 1
+    # ── Top orange accent bar ─────────────────────────────────────────────────
+    set_row_h(ws, R, 6); fill(ws, R, 1, 12, ORANGE); R += 1
 
-    # ── Company logo + name header ────────────────────────────────────────────
-    set_row_h(ws, R, 72); fill(ws, R, 1, 12, NAVY)
+    # ── Logo + Company Header ─────────────────────────────────────────────────
+    set_row_h(ws, R, 26); fill(ws, R, 1, 12, NAVY)
     if logo_path and os.path.exists(logo_path):
         try:
             img = XLImage(logo_path)
-            img.width = 190; img.height = 64
+            img.width = 160; img.height = 50
             img.anchor = f"B{R}"
             ws.add_image(img)
         except Exception:
@@ -307,36 +290,38 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     mg(ws, R, 3, R, 11)
     c = ws.cell(row=R, column=3)
     c.value = "BRIJ INDUSTRIES"
-    c.font = Font(name="Arial", size=24, bold=True, color=WHITE)
-    c.alignment = Alignment(horizontal="center", vertical="center")
+    c.font = Font(name="Arial", size=15, bold=True, color=WHITE)
+    c.alignment = Alignment(horizontal="right", vertical="center")
     c.fill = PatternFill("solid", fgColor=NAVY)
     R += 1
 
-    # DSS highlighted row
-    set_row_h(ws, R, 18); fill(ws, R, 1, 12, ORANGE)
-    mg(ws, R, 2, R, 11)
-    c = ws.cell(row=R, column=2)
-    c.value = f"DSS  DOLPHIN  STORAGE  SOLUTIONS   ·   {product}"
-    c.font = Font(name="Arial", size=11, bold=True, color=NAVY)
-    c.alignment = Alignment(horizontal="center", vertical="center")
-    c.fill = PatternFill("solid", fgColor=ORANGE)
+    # ── DSS Brand row — BIG, PROMINENT ───────────────────────────────────────
+    set_row_h(ws, R, 52); fill(ws, R, 1, 12, NAVY)
+    mg(ws, R, 2, R, 5)
+    c_dss = ws.cell(row=R, column=2)
+    c_dss.value = "DSS"
+    c_dss.font = Font(name="Arial", size=38, bold=True, color=ORANGE)
+    c_dss.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+    c_dss.fill = PatternFill("solid", fgColor=NAVY)
+    mg(ws, R, 6, R, 11)
+    c_full = ws.cell(row=R, column=6)
+    c_full.value = "DOLPHIN  STORAGE  SOLUTIONS"
+    c_full.font = Font(name="Arial", size=13, bold=True, color=WHITE)
+    c_full.alignment = Alignment(horizontal="left", vertical="center")
+    c_full.fill = PatternFill("solid", fgColor=NAVY)
     R += 1
 
-    set_row_h(ws, R, 13); fill(ws, R, 1, 12, NAVY_LIGHT)
+    # ── Contact strip ─────────────────────────────────────────────────────────
+    set_row_h(ws, R, 14); fill(ws, R, 1, 12, NAVY_MID)
     mg(ws, R, 2, R, 11)
-    W(ws, R, 2, "86/3/1 Road No 7, Mundka Industrial Area, New Delhi – 110041   |   GST: 07AAMFB6403G1ZM   |   +91 9625589161 / 9811096149",
-      sz=8, color=WHITE, bg=NAVY_LIGHT, ha="center")
-    R += 1
-
-    set_row_h(ws, R, 12); fill(ws, R, 1, 12, NAVY_LIGHT)
-    mg(ws, R, 2, R, 11)
-    W(ws, R, 2, "brijindustries09@rediffmail.com   |   www.brijindustries.in",
-      sz=8, color="C8DFF0", bg=NAVY_LIGHT, ha="center", italic=True)
+    W(ws, R, 2,
+      "86/3/1 Road No 7, Mundka Industrial Area, New Delhi – 110041   |   GST: 07AAMFB6403G1ZM   |   +91 9625589161 / 9811096149   |   brijindustries09@rediffmail.com",
+      sz=7.5, color="A8CCF0", bg=NAVY_MID, ha="center", italic=True)
     R += 1
 
     # ── Orange divider ────────────────────────────────────────────────────────
     set_row_h(ws, R, 5); fill(ws, R, 1, 12, ORANGE); R += 1
-    set_row_h(ws, R, 6); R += 1
+    set_row_h(ws, R, 7); R += 1
 
     # ── COMMERCIAL OFFER title ────────────────────────────────────────────────
     set_row_h(ws, R, 28)
@@ -349,11 +334,8 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     c.border = b_med(ORANGE)
     R += 1
 
-    set_row_h(ws, R, 5); fill(ws, R, 2, 11, ORANGE)
-    for col in range(2, 12):
-        ws.cell(row=R, column=col).border = Border(bottom=Side(style="medium", color=ORANGE))
-    R += 1
-    set_row_h(ws, R, 6); R += 1
+    set_row_h(ws, R, 5); fill(ws, R, 2, 11, ORANGE); R += 1
+    set_row_h(ws, R, 7); R += 1
 
     # ── Detail pairs ──────────────────────────────────────────────────────────
     def detail_pair(lbl_l, val_l, lbl_r, val_r, bg=ROW_ALT):
@@ -374,7 +356,7 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     detail_pair("Product :", product,      "Offer No. :", offer_no,                      ROW_ALT)
     detail_pair("Project :", project_name, "",            "",                             WHITE)
 
-    set_row_h(ws, R, 8); R += 1
+    set_row_h(ws, R, 9); R += 1
 
     # ── TECHNICAL DETAILS ─────────────────────────────────────────────────────
     set_row_h(ws, R, 24)
@@ -389,50 +371,53 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 
     set_row_h(ws, R, 4); fill(ws, R, 2, 11, ORANGE); R += 1
 
-    # Column headers — DESCRIPTION REMOVED, columns re-mapped
-    set_row_h(ws, R, 28); fill(ws, R, 2, 11, NAVY)
+    # ── Technical headers — Beam Type & Upright Section REMOVED ──────────────
+    set_row_h(ws, R, 30); fill(ws, R, 2, 11, NAVY)
     tech_hdrs = [
-        (2,  "MODULE",              "center"),
-        (3,  "BEAM TYPE",           "center"),
-        (4,  "UPRIGHT\nSECTION",   "center"),
-        (5,  "HEIGHT\n(mm)",        "center"),
-        (6,  "LENGTH\n(mm)",        "center"),
-        (7,  "DEPTH\n(mm)",         "center"),
-        (8,  "LEVELS",              "center"),
-        (9,  "UDL\n(kg/m²)",        "center"),
-        (10, "LOAD /\nLEVEL (kg)",  "center"),
-        (11, "PALLETS\n/ LEVEL",    "center"),
+        (2,  "MODULE",             "center"),
+        (3,  "",                   "center"),   # merged with MODULE
+        (4,  "HEIGHT\n(mm)",       "center"),
+        (5,  "LENGTH\n(mm)",       "center"),
+        (6,  "DEPTH\n(mm)",        "center"),
+        (7,  "LEVELS",             "center"),
+        (8,  "UDL\n(kg/m²)",       "center"),
+        (9,  "LOAD /\nLEVEL (kg)", "center"),
+        (10, "",                   "center"),   # merged with LOAD
+        (11, "PALLETS\n/ LEVEL",   "center"),
     ]
     for col, txt, al in tech_hdrs:
         c = ws.cell(row=R, column=col)
         c.value = txt
-        c.font = Font(name="Arial", size=8, bold=True, color=WHITE)
+        c.font = Font(name="Arial", size=8.5, bold=True, color=WHITE)
         c.fill = PatternFill("solid", fgColor=NAVY)
         c.alignment = Alignment(horizontal=al, vertical="center", wrap_text=True)
         c.border = b_thin(NAVY_MID)
+    # Merge MODULE and LOAD headers for cleaner look
+    mg(ws, R, 2, R, 3)
+    mg(ws, R, 9, R, 10)
     R += 1
 
     for idx, rack in enumerate(rack_data):
         comp = calc_components(rack)
         bg = WHITE if idx % 2 == 0 else ROW_ALT
-        set_row_h(ws, R, 20)
+        set_row_h(ws, R, 21)
         fill(ws, R, 2, 11, bg, b_thin())
 
+        mg(ws, R, 2, R, 3)
         W(ws, R, 2, rack['module'], bold=True, sz=9, color=NAVY_MID, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 3, rack['bt'], sz=8, color=MID_TEXT, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 4, f"{rack['uw']}×{rack['ud']}", sz=8, color=MID_TEXT, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 5, rack["ul"], sz=9, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 6, rack["bl"], sz=9, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 7, rack["depth"], sz=9, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 8, rack["levels"], sz=9, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 9, comp["udl_kg_m2"], sz=9, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 10, comp["load_per_level"], sz=9, bg=bg, ha="center", bdr=b_thin(), fmt="#,##0")
+        W(ws, R, 4, rack["ul"],     sz=9, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 5, rack["bl"],     sz=9, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 6, rack["depth"],  sz=9, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 7, rack["levels"], sz=9, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 8, comp["udl_kg_m2"], sz=9, bg=bg, ha="center", bdr=b_thin())
+        mg(ws, R, 9, R, 10)
+        W(ws, R, 9, comp["load_per_level"], sz=9, bg=bg, ha="center", bdr=b_thin(), fmt="#,##0")
         pallets = max(1, int(rack["bl"] / 1200))
         W(ws, R, 11, pallets, sz=9, bg=bg, ha="center", bdr=b_thin())
         R += 1
 
     set_row_h(ws, R, 4); fill(ws, R, 2, 11, ORANGE); R += 1
-    set_row_h(ws, R, 8); R += 1
+    set_row_h(ws, R, 9); R += 1
 
     # ── SCOPE OF SUPPLY ───────────────────────────────────────────────────────
     set_row_h(ws, R, 24)
@@ -447,7 +432,7 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 
     set_row_h(ws, R, 4); fill(ws, R, 2, 11, ORANGE); R += 1
 
-    set_row_h(ws, R, 26); fill(ws, R, 2, 11, NAVY)
+    set_row_h(ws, R, 28); fill(ws, R, 2, 11, NAVY)
     scope_hdrs = [
         (2,  "SR.",              "center"),
         (3,  "",                 "center"),
@@ -541,7 +526,8 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 
     set_row_h(ws, R, 4); fill(ws, R, 2, 11, ORANGE); R += 1
 
-    set_row_h(ws, R, 24); fill(ws, R, 2, 11, NAVY_MID)
+    # ── Subtotal ──────────────────────────────────────────────────────────────
+    set_row_h(ws, R, 26); fill(ws, R, 2, 11, NAVY_MID)
     mg(ws, R, 2, R, 10)
     c = ws.cell(row=R, column=2)
     c.value = "SUBTOTAL  BASIC AMOUNT  (Excl. GST)"
@@ -552,14 +538,14 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     W(ws, R, 11, round(total_basic, 2), bold=True, sz=10, color=WHITE,
       bg=NAVY, ha="right", fmt="#,##0.00", bdr=b_med(NAVY))
     R += 1
-    set_row_h(ws, R, 8); R += 1
+    set_row_h(ws, R, 9); R += 1
 
     gst   = round(total_basic * 0.18, 2)
     grand = round(total_basic + gst, 2)
 
     def price_row(lbl, val, bg=WHITE, bold=False, vc=DARK_TEXT, is_text=False):
         nonlocal R
-        set_row_h(ws, R, 21); fill(ws, R, 7, 11, bg)
+        set_row_h(ws, R, 22); fill(ws, R, 7, 11, bg)
         mg(ws, R, 7, R, 10)
         c_l = ws.cell(row=R, column=7)
         c_l.value = lbl
@@ -582,28 +568,44 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     price_row("Erection Charges",    "Inclusive",           ORANGE_LIGHT, False, ORANGE_DARK, True)
     price_row("GST @ 18%  (Rs.)",    gst,                   WHITE,        False, MID_TEXT)
 
-    set_row_h(ws, R, 8); R += 1
+    # ── Spacer before grand total ──────────────────────────────────────────────
+    set_row_h(ws, R, 10); R += 1
 
-    set_row_h(ws, R, 32); fill(ws, R, 2, 11, NAVY)
+    # ── GRAND TOTAL — isolated row, no merging issue ──────────────────────────
+    set_row_h(ws, R, 36); fill(ws, R, 2, 11, NAVY)
     mg(ws, R, 2, R, 10)
     c = ws.cell(row=R, column=2)
     c.value = "GRAND TOTAL  ·  Inclusive of GST @ 18%"
     c.font = Font(name="Arial", size=12, bold=True, color=WHITE)
     c.alignment = Alignment(horizontal="center", vertical="center")
     c.fill = PatternFill("solid", fgColor=NAVY)
-    c.border = b_med(ORANGE)
+    # Explicit border only on the merged region sides
+    c.border = Border(
+        left=Side(style="medium", color=ORANGE),
+        top=Side(style="medium", color=ORANGE),
+        bottom=Side(style="medium", color=ORANGE),
+    )
     c_gv = ws.cell(row=R, column=11)
     c_gv.value = grand
     c_gv.font = Font(name="Arial", size=12, bold=True, color=WHITE)
     c_gv.alignment = Alignment(horizontal="right", vertical="center", indent=1)
     c_gv.fill = PatternFill("solid", fgColor=ORANGE)
-    c_gv.border = b_med(ORANGE)
+    c_gv.border = Border(
+        right=Side(style="medium", color=ORANGE),
+        top=Side(style="medium", color=ORANGE),
+        bottom=Side(style="medium", color=ORANGE),
+    )
     c_gv.number_format = 'Rs. #,##0.00'
     R += 1
 
-    set_row_h(ws, R, 5); fill(ws, R, 1, 12, ORANGE); R += 1
+    # ── Spacer after grand total (prevents visual merge with next row) ─────────
     set_row_h(ws, R, 8); R += 1
 
+    # ── Orange accent bar ─────────────────────────────────────────────────────
+    set_row_h(ws, R, 5); fill(ws, R, 1, 12, ORANGE); R += 1
+    set_row_h(ws, R, 9); R += 1
+
+    # ── Terms & Bank ──────────────────────────────────────────────────────────
     set_row_h(ws, R, 22); fill(ws, R, 2, 11, NAVY_MID)
     mg(ws, R, 2, R, 6)
     c = ws.cell(row=R, column=2)
@@ -637,7 +639,7 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
         set_row_h(ws, R, 18)
         mg(ws, R, 2, R, 6)
         c = ws.cell(row=R, column=2)
-        c.value = f"  >  {t}"
+        c.value = f"  ›  {t}"
         c.font = Font(name="Arial", size=8.5, color=MID_TEXT)
         c.alignment = Alignment(horizontal="left", vertical="center")
         c.fill = PatternFill("solid", fgColor=ROW_ALT)
@@ -651,7 +653,7 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
         c2.border = b_thin()
         R += 1
 
-    set_row_h(ws, R, 8); R += 1
+    set_row_h(ws, R, 9); R += 1
 
     set_row_h(ws, R, 44)
     mg(ws, R, 2, R, 6)
@@ -662,16 +664,16 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     c.border = Border(top=Side(style="medium", color=NAVY_MID))
     mg(ws, R, 7, R, 11)
     c2 = ws.cell(row=R, column=7)
-    c2.value = "For BRIJ INDUSTRIES"
+    c2.value = "For BRIJ INDUSTRIES  |  DSS Dolphin Storage Solutions"
     c2.font = Font(name="Arial", size=8, color=LIGHT_TEXT, italic=True)
     c2.alignment = Alignment(horizontal="center", vertical="bottom")
     c2.border = Border(top=Side(style="medium", color=NAVY_MID))
     R += 1
 
-    set_row_h(ws, R, 5); fill(ws, R, 1, 12, ORANGE); R += 1
-    set_row_h(ws, R, 15); fill(ws, R, 1, 12, NAVY)
+    set_row_h(ws, R, 6); fill(ws, R, 1, 12, ORANGE); R += 1
+    set_row_h(ws, R, 16); fill(ws, R, 1, 12, NAVY)
     mg(ws, R, 2, R, 11)
-    W(ws, R, 2, "Thank you for considering DSS Dolphin Storage Solutions. We look forward to serving you.",
+    W(ws, R, 2, "DSS  ·  Dolphin Storage Solutions  ·  BRIJ INDUSTRIES  ·  www.brijindustries.in",
       sz=8.5, color="A8CCF0", bg=NAVY, ha="center", italic=True)
 
     ws.page_setup.orientation = "portrait"
@@ -690,53 +692,40 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
     ws.sheet_view.showGridLines = False
 
     col_w = {
-        1: 1.2,
-        2: 4,
-        3: 26,
-        4: 13,
-        5: 11,
-        6: 11,
-        7: 12,
-        8: 11,
-        9: 11,
-        10: 15,
-        11: 15,
-        12: 16,
-        13: 1.2
+        1: 1.2, 2: 4, 3: 26, 4: 13, 5: 11,
+        6: 11, 7: 12, 8: 11, 9: 11, 10: 15, 11: 15, 12: 16, 13: 1.2
     }
     for col, w in col_w.items():
         ws.column_dimensions[get_column_letter(col)].width = w
 
     R = 1
-    set_row_h(ws, R, 5); fill(ws, R, 1, 13, ORANGE); R += 1
+    set_row_h(ws, R, 6); fill(ws, R, 1, 13, ORANGE); R += 1
 
-    set_row_h(ws, R, 56); fill(ws, R, 1, 13, NAVY)
-    mg(ws, R, 2, R, 12)
+    # DSS as primary brand in BOM header
+    set_row_h(ws, R, 44); fill(ws, R, 1, 13, NAVY)
+    mg(ws, R, 2, R, 5)
     c = ws.cell(row=R, column=2)
-    c.value = "BRIJ INDUSTRIES  —  BILL OF MATERIALS"
-    c.font = Font(name="Arial", size=18, bold=True, color=WHITE)
-    c.alignment = Alignment(horizontal="center", vertical="center")
+    c.value = "DSS"
+    c.font = Font(name="Arial", size=30, bold=True, color=ORANGE)
+    c.alignment = Alignment(horizontal="left", vertical="center", indent=1)
     c.fill = PatternFill("solid", fgColor=NAVY)
-    R += 1
-
-    set_row_h(ws, R, 16); fill(ws, R, 1, 13, ORANGE)
-    mg(ws, R, 2, R, 12)
-    c = ws.cell(row=R, column=2)
-    c.value = "DSS  DOLPHIN  STORAGE  SOLUTIONS"
-    c.font = Font(name="Arial", size=10, bold=True, color=NAVY)
-    c.alignment = Alignment(horizontal="center", vertical="center")
-    c.fill = PatternFill("solid", fgColor=ORANGE)
+    mg(ws, R, 6, R, 12)
+    c2 = ws.cell(row=R, column=6)
+    c2.value = "DOLPHIN STORAGE SOLUTIONS  —  BILL OF MATERIALS"
+    c2.font = Font(name="Arial", size=14, bold=True, color=WHITE)
+    c2.alignment = Alignment(horizontal="left", vertical="center")
+    c2.fill = PatternFill("solid", fgColor=NAVY)
     R += 1
 
     set_row_h(ws, R, 14); fill(ws, R, 1, 13, NAVY_MID)
     mg(ws, R, 2, R, 12)
     W(ws, R, 2,
-      f"Offer No: {offer_no}  |  Customer: {client}  |  Date: {date_obj.strftime('%d %B %Y')}",
-      sz=9, color=WHITE, bg=NAVY_MID, ha="center")
+      f"BRIJ INDUSTRIES   |   Offer No: {offer_no}   |   Customer: {client}   |   Date: {date_obj.strftime('%d %B %Y')}",
+      sz=9, color="A8CCF0", bg=NAVY_MID, ha="center")
     R += 1
 
     set_row_h(ws, R, 5); fill(ws, R, 1, 13, ORANGE); R += 1
-    set_row_h(ws, R, 6); R += 1
+    set_row_h(ws, R, 7); R += 1
 
     grand_main_wt  = 0.0
     grand_addon_wt = 0.0
@@ -882,11 +871,11 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
 
         set_row_h(ws, R, 28); fill(ws, R, 2, 12, NAVY)
         ACC_H = [
-            (2,  "SR.",            "center"),
-            (3,  "ITEM",           "left"),
-            (5,  "QTY",            "center"),
-            (6,  "WT / PCS (kg)",  "center"),
-            (10, "TOTAL WT (kg)",  "center"),
+            (2,  "SR.",           "center"),
+            (3,  "ITEM",          "left"),
+            (5,  "QTY",           "center"),
+            (6,  "WT / PCS (kg)", "center"),
+            (10, "TOTAL WT (kg)", "center"),
         ]
         for col in range(2, 13):
             c = ws.cell(row=R, column=col)
@@ -919,7 +908,7 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
                 W(ws, R, 10, str(tot), sz=9, color=NAVY, bg=bg, ha="center", bdr=b_thin())
             R += 1
 
-        set_row_h(ws, R, 8); R += 1
+        set_row_h(ws, R, 9); R += 1
 
     set_row_h(ws, R, 5); fill(ws, R, 1, 13, ORANGE); R += 1
     set_row_h(ws, R, 24)
@@ -992,10 +981,10 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
         cv.number_format = nf
     R += 1
 
-    set_row_h(ws, R, 5); fill(ws, R, 1, 13, ORANGE); R += 1
-    set_row_h(ws, R, 15); fill(ws, R, 1, 13, NAVY)
+    set_row_h(ws, R, 6); fill(ws, R, 1, 13, ORANGE); R += 1
+    set_row_h(ws, R, 16); fill(ws, R, 1, 13, NAVY)
     mg(ws, R, 2, R, 12)
-    W(ws, R, 2, "BRIJ INDUSTRIES  |  DSS Dolphin Storage Solutions  |  www.brijindustries.in",
+    W(ws, R, 2, "DSS  ·  Dolphin Storage Solutions  ·  BRIJ INDUSTRIES  ·  www.brijindustries.in",
       sz=8.5, color="A8CCF0", bg=NAVY, ha="center", italic=True)
 
     ws.page_setup.orientation = "landscape"
@@ -1027,248 +1016,346 @@ def build_excel(client, product, offer_no, date_obj, project_name,
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STREAMLIT UI  —  Enhanced Aesthetic
+#  STREAMLIT UI  —  DSS-forward redesign
 # ═══════════════════════════════════════════════════════════════════════════════
 st.set_page_config(page_title="DSS Quotation Generator", layout="wide", page_icon="🐬")
 
 st.markdown("""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
   html, body, [class*="css"] { font-family: 'Inter', Arial, sans-serif; }
 
-  /* ── Main background ── */
-  .stApp { background: #f0f4f8; }
+  /* ── Background ── */
+  .stApp { background: #eef2f7; }
   section[data-testid="stSidebar"] { display: none; }
 
-  /* ── Hero header ── */
+  /* ══════════════════════════════════════════════
+     HERO  —  DSS is the star
+  ══════════════════════════════════════════════ */
   .hero-wrap {
-      background: linear-gradient(135deg, #0D2137 0%, #1A3A5C 60%, #0D2137 100%);
-      border-radius: 18px;
-      padding: 0;
-      margin-bottom: 28px;
-      box-shadow: 0 12px 40px rgba(13,33,55,0.40);
+      background: linear-gradient(150deg, #071420 0%, #0D2137 45%, #0a1c30 100%);
+      border-radius: 20px;
+      margin-bottom: 32px;
+      box-shadow: 0 16px 56px rgba(13,33,55,0.50);
       overflow: hidden;
       position: relative;
   }
-  .hero-top-bar {
-      background: #E87722;
-      height: 6px;
-      width: 100%;
+  .hero-top-stripe {
+      height: 7px;
+      background: linear-gradient(90deg, #E87722, #ff9a45, #E87722);
   }
   .hero-body {
-      padding: 28px 40px 22px;
-      text-align: center;
-      position: relative;
+      padding: 36px 48px 30px;
+      display: flex;
+      align-items: center;
+      gap: 36px;
   }
-  .hero-title {
-      font-size: 2.2rem;
-      font-weight: 800;
-      color: #FFFFFF;
-      letter-spacing: 5px;
-      margin: 0 0 4px;
-      text-transform: uppercase;
+  .hero-left {
+      flex: 0 0 auto;
+      border-right: 2px solid rgba(232,119,34,0.35);
+      padding-right: 36px;
   }
-  .hero-dss {
-      font-size: 1.15rem;
-      font-weight: 700;
+  .hero-dss-text {
+      font-size: 5.8rem;
+      font-weight: 900;
       color: #E87722;
-      letter-spacing: 3px;
-      margin: 6px 0 2px;
-      text-transform: uppercase;
-  }
-  .hero-sub {
-      font-size: 0.82rem;
-      color: #8AAECF;
-      letter-spacing: 1.5px;
+      letter-spacing: 10px;
+      line-height: 1;
       margin: 0;
-      font-weight: 400;
+      text-shadow: 0 0 60px rgba(232,119,34,0.30);
   }
-  .hero-product-tag {
-      display: inline-block;
-      background: rgba(232,119,34,0.18);
-      border: 1px solid rgba(232,119,34,0.45);
-      color: #E87722;
-      font-size: 0.75rem;
-      font-weight: 600;
+  .hero-right {
+      flex: 1;
+      text-align: left;
+  }
+  .hero-brand-full {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #FFFFFF;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin: 0 0 8px;
+  }
+  .hero-company {
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #8AAECF;
       letter-spacing: 2px;
-      padding: 4px 16px;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+  }
+  .hero-tag-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+  }
+  .hero-tag {
+      display: inline-block;
+      background: rgba(232,119,34,0.15);
+      border: 1px solid rgba(232,119,34,0.40);
+      color: #E87722;
+      font-size: 0.70rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      padding: 5px 14px;
       border-radius: 20px;
-      margin-top: 10px;
       text-transform: uppercase;
   }
-  .hero-bottom-bar {
-      background: #E87722;
-      height: 4px;
-      width: 100%;
+  .hero-tag-blue {
+      background: rgba(46,109,164,0.20);
+      border: 1px solid rgba(46,109,164,0.40);
+      color: #7eb8e8;
+  }
+  .hero-bottom-stripe {
+      height: 5px;
+      background: linear-gradient(90deg, #E87722, #ff9a45, #E87722);
   }
 
-  /* ── Section headers ── */
+  /* ══════════════════════════════════════════════
+     SECTION HEADERS
+  ══════════════════════════════════════════════ */
   h2 {
       color: #0D2137 !important;
-      font-weight: 700 !important;
-      letter-spacing: 0.5px;
-      border-bottom: 3px solid #E87722;
-      padding-bottom: 8px;
-      margin-bottom: 18px !important;
+      font-weight: 800 !important;
+      letter-spacing: 0.3px !important;
+      font-size: 1.05rem !important;
+  }
+  .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #E87722;
+  }
+  .section-header-text {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #0D2137;
+      letter-spacing: 0.3px;
+  }
+  .section-pill {
+      background: #0D2137;
+      color: #E87722;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
   }
 
-  /* ── Cards / containers ── */
-  .section-card {
+  /* ══════════════════════════════════════════════
+     CARDS
+  ══════════════════════════════════════════════ */
+  .glass-card {
       background: #ffffff;
-      border-radius: 14px;
-      padding: 22px 24px;
+      border-radius: 16px;
+      padding: 24px 26px;
       margin-bottom: 20px;
-      box-shadow: 0 2px 12px rgba(13,33,55,0.08);
-      border-left: 5px solid #E87722;
+      box-shadow: 0 2px 16px rgba(13,33,55,0.07);
+      border-top: 4px solid #E87722;
   }
 
-  /* ── Expanders ── */
+  /* ══════════════════════════════════════════════
+     INPUTS
+  ══════════════════════════════════════════════ */
+  input, select, textarea {
+      border-radius: 10px !important;
+      border-color: #C8DFF0 !important;
+  }
+  input:focus, select:focus {
+      border-color: #E87722 !important;
+      box-shadow: 0 0 0 3px rgba(232,119,34,0.16) !important;
+  }
+  label {
+      color: #1A3A5C !important;
+      font-weight: 600 !important;
+      font-size: 0.82rem !important;
+      letter-spacing: 0.2px !important;
+  }
+
+  /* ══════════════════════════════════════════════
+     EXPANDERS
+  ══════════════════════════════════════════════ */
   .streamlit-expanderHeader {
       background: #EAF2FB !important;
       border-left: 4px solid #E87722 !important;
-      border-radius: 10px !important;
-      font-weight: 600 !important;
+      border-radius: 12px !important;
+      font-weight: 700 !important;
       color: #0D2137 !important;
-      font-size: 0.93rem !important;
+      font-size: 0.90rem !important;
   }
   .streamlit-expanderContent {
-      background: #f8fbff !important;
-      border-radius: 0 0 10px 10px !important;
-      border-left: 4px solid #E8772240 !important;
+      background: #f6f9fd !important;
+      border-left: 4px solid rgba(232,119,34,0.20) !important;
+      border-radius: 0 0 12px 12px !important;
   }
 
-  /* ── Inputs ── */
-  input, select, textarea {
-      border-radius: 8px !important;
-  }
-  input:focus, select:focus, textarea:focus {
-      border-color: #E87722 !important;
-      box-shadow: 0 0 0 3px rgba(232,119,34,0.18) !important;
-  }
-  label { color: #1A3A5C !important; font-weight: 500 !important; font-size: 0.85rem !important; }
-
-  /* ── Metric cards ── */
+  /* ══════════════════════════════════════════════
+     METRIC CARDS
+  ══════════════════════════════════════════════ */
   [data-testid="metric-container"] {
       background: linear-gradient(135deg, #ffffff 0%, #EAF2FB 100%);
       border: 1px solid #C8DFF0;
       border-top: 4px solid #E87722;
-      border-radius: 12px;
-      padding: 16px 18px !important;
-      box-shadow: 0 3px 12px rgba(13,33,55,0.09);
-      transition: transform 0.15s ease;
+      border-radius: 14px;
+      padding: 18px 16px !important;
+      box-shadow: 0 4px 16px rgba(13,33,55,0.08);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
-  [data-testid="metric-container"]:hover { transform: translateY(-2px); }
-  [data-testid="metric-container"] label { color: #1A3A5C !important; font-weight: 600 !important; font-size: 0.78rem !important; }
+  [data-testid="metric-container"]:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(13,33,55,0.14);
+  }
+  [data-testid="metric-container"] label {
+      color: #1A3A5C !important;
+      font-weight: 700 !important;
+      font-size: 0.75rem !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.5px !important;
+  }
   [data-testid="metric-container"] [data-testid="metric-value"] {
-      color: #0D2137 !important; font-size: 1.18rem !important; font-weight: 800 !important;
+      color: #0D2137 !important;
+      font-size: 1.15rem !important;
+      font-weight: 900 !important;
   }
 
-  /* ── Generate button ── */
-  .stButton > button {
+  /* ══════════════════════════════════════════════
+     LIVE PREVIEW BAR
+  ══════════════════════════════════════════════ */
+  .preview-bar {
       background: linear-gradient(135deg, #0D2137 0%, #1A3A5C 100%);
-      color: #E87722 !important;
-      font-weight: 700 !important;
-      border: 2px solid #E87722 !important;
-      border-radius: 12px;
-      padding: 16px 32px;
-      font-size: 1.08rem;
+      border-radius: 14px;
+      padding: 14px 24px;
+      margin: 4px 0 20px;
+      border-left: 5px solid #E87722;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+  }
+  .preview-bar-label {
+      color: #E87722;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin: 0;
+  }
+  .preview-bar-sub {
+      color: #6A8FAA;
+      font-size: 0.72rem;
+      margin: 2px 0 0;
+  }
+
+  /* ══════════════════════════════════════════════
+     COLUMN LABELS
+  ══════════════════════════════════════════════ */
+  .col-label {
+      background: linear-gradient(135deg, #0D2137, #1A3A5C);
+      color: #E87722;
+      font-size: 0.68rem;
+      font-weight: 800;
       letter-spacing: 1.5px;
-      transition: all 0.22s ease;
-      box-shadow: 0 4px 16px rgba(13,33,55,0.25);
+      text-transform: uppercase;
+      padding: 5px 13px;
+      border-radius: 8px;
+      display: inline-block;
+      margin-bottom: 12px;
+  }
+
+  /* ══════════════════════════════════════════════
+     ACCESSORIES BANNER
+  ══════════════════════════════════════════════ */
+  .acc-banner {
+      background: linear-gradient(90deg, #EAF2FB 0%, #f8fbff 100%);
+      border-left: 5px solid #E87722;
+      padding: 12px 20px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+      color: #1A3A5C;
+      font-weight: 500;
+      font-size: 0.86rem;
+  }
+
+  /* ══════════════════════════════════════════════
+     GENERATE BUTTON
+  ══════════════════════════════════════════════ */
+  .stButton > button {
+      background: linear-gradient(135deg, #0D2137 0%, #1A3A5C 100%) !important;
+      color: #E87722 !important;
+      font-weight: 800 !important;
+      border: 2px solid #E87722 !important;
+      border-radius: 14px !important;
+      padding: 18px 32px !important;
+      font-size: 1.05rem !important;
+      letter-spacing: 2px !important;
+      transition: all 0.22s ease !important;
+      box-shadow: 0 6px 24px rgba(13,33,55,0.30) !important;
   }
   .stButton > button:hover {
       background: linear-gradient(135deg, #E87722 0%, #B85C0A 100%) !important;
       color: #FFFFFF !important;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(232,119,34,0.45);
+      transform: translateY(-3px) !important;
+      box-shadow: 0 10px 32px rgba(232,119,34,0.50) !important;
+      border-color: transparent !important;
   }
 
-  /* ── Download button ── */
+  /* ══════════════════════════════════════════════
+     DOWNLOAD BUTTON
+  ══════════════════════════════════════════════ */
   [data-testid="stDownloadButton"] button {
       background: linear-gradient(135deg, #E87722 0%, #B85C0A 100%) !important;
       color: white !important;
       border: none !important;
-      border-radius: 12px !important;
-      font-weight: 700 !important;
-      font-size: 1.05rem !important;
-      padding: 14px 28px !important;
-      box-shadow: 0 5px 18px rgba(232,119,34,0.42);
-      transition: all 0.22s ease;
+      border-radius: 14px !important;
+      font-weight: 800 !important;
+      font-size: 1.02rem !important;
+      padding: 16px 28px !important;
+      box-shadow: 0 6px 22px rgba(232,119,34,0.45) !important;
+      transition: all 0.22s ease !important;
   }
   [data-testid="stDownloadButton"] button:hover {
-      background: linear-gradient(135deg, #ff9940 0%, #E87722 100%) !important;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 26px rgba(232,119,34,0.55);
+      background: linear-gradient(135deg, #ff9a45 0%, #E87722 100%) !important;
+      transform: translateY(-3px) !important;
+      box-shadow: 0 10px 30px rgba(232,119,34,0.60) !important;
   }
 
-  /* ── Divider ── */
-  hr { border-color: #E87722 !important; border-width: 1.5px !important; opacity: 0.25; }
-
-  /* ── Alerts ── */
+  /* ══════════════════════════════════════════════
+     ALERTS & DIVIDER
+  ══════════════════════════════════════════════ */
+  hr { border-color: #E87722 !important; border-width: 1.5px !important; opacity: 0.18; }
   .stSuccess {
       border-left: 5px solid #E87722 !important;
       background: #FEF0E4 !important;
-      border-radius: 10px !important;
+      border-radius: 12px !important;
   }
-  .stInfo    { border-left: 5px solid #1A3A5C !important; border-radius: 10px !important; }
-  .stError   { border-radius: 10px !important; }
-
-  /* ── Info badge for accessories ── */
-  .acc-banner {
-      background: linear-gradient(90deg, #EAF2FB, #ffffff);
-      border-left: 5px solid #E87722;
-      padding: 12px 18px;
-      border-radius: 10px;
-      margin-bottom: 14px;
-      color: #1A3A5C;
-      font-weight: 500;
-      font-size: 0.88rem;
-  }
-
-  /* ── Live preview bar ── */
-  .preview-bar {
-      background: linear-gradient(135deg, #0D2137 0%, #1A3A5C 100%);
-      border-radius: 12px;
-      padding: 14px 22px;
-      margin: 10px 0 18px;
-      border-bottom: 3px solid #E87722;
-  }
-  .preview-bar p {
-      color: #8AAECF;
-      font-size: 0.78rem;
-      margin: 0 0 2px;
-      letter-spacing: 1px;
-      font-weight: 600;
-      text-transform: uppercase;
-  }
-
-  /* ── Column group labels ── */
-  .col-label {
-      background: #0D2137;
-      color: #E87722;
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      padding: 5px 12px;
-      border-radius: 6px;
-      display: inline-block;
-      margin-bottom: 10px;
-  }
+  .stInfo    { border-left: 5px solid #1A3A5C !important; border-radius: 12px !important; }
+  .stError   { border-radius: 12px !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Hero Header ──────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+#  HERO  —  DSS front and centre
+# ═══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
 <div class="hero-wrap">
-  <div class="hero-top-bar"></div>
+  <div class="hero-top-stripe"></div>
   <div class="hero-body">
-    <div class="hero-title">🐬 &nbsp; Quotation Generator</div>
-    <div class="hero-dss">DSS &nbsp;·&nbsp; Dolphin Storage Solutions</div>
-    <div class="hero-sub">BRIJ INDUSTRIES &nbsp;·&nbsp; Mundka Industrial Area, New Delhi</div>
-    <div class="hero-product-tag">Modular Mezzanine &amp; Racking Systems</div>
+    <div class="hero-left">
+      <div class="hero-dss-text">DSS</div>
+    </div>
+    <div class="hero-right">
+      <div class="hero-brand-full">Dolphin Storage Solutions</div>
+      <div class="hero-company">🏭 &nbsp; BRIJ INDUSTRIES &nbsp;·&nbsp; Mundka Industrial Area, New Delhi</div>
+      <div class="hero-tag-row">
+        <span class="hero-tag">Quotation Generator</span>
+        <span class="hero-tag hero-tag-blue">Modular Racking Systems</span>
+        <span class="hero-tag hero-tag-blue">Mezzanine Floors</span>
+      </div>
+    </div>
   </div>
-  <div class="hero-bottom-bar"></div>
+  <div class="hero-bottom-stripe"></div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1284,26 +1371,37 @@ if logo_file:
     st.success(f"✅  Logo uploaded: {logo_file.name}")
 
 # ── Customer & Offer Details ──────────────────────────────────────────────────
-st.subheader("📋  Customer & Offer Details")
-with st.container():
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown('<span class="col-label">Client Info</span>', unsafe_allow_html=True)
-        client       = st.text_input("Customer Name (M/S)",  "STYLE BAZAAR")
-        product      = st.text_input("Product",              "MODULAR MEZZANINE FLOOR")
-    with c2:
-        st.markdown('<span class="col-label">Offer Info</span>', unsafe_allow_html=True)
-        offer_no     = st.text_input("Offer No",             "DSS-IV/25-26/0712")
-        project_name = st.text_input("Project Name",         "MODULE MEZZANINE FLOOR")
-    with c3:
-        st.markdown('<span class="col-label">Pricing</span>', unsafe_allow_html=True)
-        date         = st.date_input("Date", datetime.date.today())
-        rate_per_kg  = st.number_input("Rate per KG (Rs.)", value=85.00, min_value=0.0, format="%.2f")
+st.markdown("""
+<div class="section-header">
+  <span class="section-header-text">📋 Customer & Offer Details</span>
+  <span class="section-pill">Step 1</span>
+</div>
+""", unsafe_allow_html=True)
+
+c1, c2, c3 = st.columns(3)
+with c1:
+    st.markdown('<span class="col-label">Client Info</span>', unsafe_allow_html=True)
+    client       = st.text_input("Customer Name (M/S)", "STYLE BAZAAR")
+    product      = st.text_input("Product",             "MODULAR MEZZANINE FLOOR")
+with c2:
+    st.markdown('<span class="col-label">Offer Info</span>', unsafe_allow_html=True)
+    offer_no     = st.text_input("Offer No",    "DSS-IV/25-26/0712")
+    project_name = st.text_input("Project Name","MODULE MEZZANINE FLOOR")
+with c3:
+    st.markdown('<span class="col-label">Pricing</span>', unsafe_allow_html=True)
+    date        = st.date_input("Date", datetime.date.today())
+    rate_per_kg = st.number_input("Rate per KG (Rs.)", value=85.00, min_value=0.0, format="%.2f")
 
 st.divider()
 
 # ── Rack Configurations ───────────────────────────────────────────────────────
-st.subheader("🏗️  Rack Configurations")
+st.markdown("""
+<div class="section-header">
+  <span class="section-header-text">🏗️ Rack Configurations</span>
+  <span class="section-pill">Step 2</span>
+</div>
+""", unsafe_allow_html=True)
+
 rack_types = st.number_input("Number of Rack Types", min_value=1, max_value=10, value=1)
 
 rack_data = []
@@ -1372,7 +1470,13 @@ for i in range(int(rack_types)):
 st.divider()
 
 # ── Accessories ───────────────────────────────────────────────────────────────
-st.subheader("🔩  Accessories")
+st.markdown("""
+<div class="section-header">
+  <span class="section-header-text">🔩 Accessories</span>
+  <span class="section-pill">Step 3</span>
+</div>
+""", unsafe_allow_html=True)
+
 st.markdown(
     '<div class="acc-banner">Enter quantities and dimensions for each accessory. '
     'Items with <strong>Qty = 0</strong> are automatically excluded from the quotation.</div>',
@@ -1396,7 +1500,6 @@ with st.expander("⚙️  Configure Accessories", expanded=False):
             rg_l   = rg_c1.number_input("Length (mm)", key=f"rgl{j}", value=2000.0, format="%.1f")
             rg_qty = rg_c2.number_input("Qty",         key=f"rgq{j}", value=1, min_value=0)
             st.caption(f"Row Guard Type {j+1}:  L = {rg_l:.0f} mm  |  Qty = {rg_qty}")
-            # Store with default h=400 for internal weight calc
             row_guards.append({"h": 400, "l": rg_l, "qty": rg_qty})
 
     st.markdown('<span class="col-label">Tie Beams</span>', unsafe_allow_html=True)
@@ -1405,11 +1508,10 @@ with st.expander("⚙️  Configure Accessories", expanded=False):
     for j in range(int(tb_types_n)):
         with st.expander(f"Tie Beam — Type {j+1}"):
             tc1, tc2, tc3 = st.columns(3)
-            tb_qty = tc1.number_input("Qty",       key=f"tbq{j}", value=1, min_value=0)
-            tb_l   = tc2.number_input("Length (mm)", key=f"tbl{j}", value=2000.0, format="%.1f")
+            tb_qty = tc1.number_input("Qty",          key=f"tbq{j}", value=1, min_value=0)
+            tb_l   = tc2.number_input("Length (mm)",  key=f"tbl{j}", value=2000.0, format="%.1f")
             tb_t   = tc3.number_input("Thickness (mm)", key=f"tbt2{j}", value=1.6, format="%.1f")
             st.caption(f"Tie Beam Type {j+1}:  L = {tb_l:.0f} mm  |  t = {tb_t} mm  |  Qty = {tb_qty}")
-            # Use standard 80×60 section for weight; user doesn't need to enter it
             tie_beams.append({"qty": tb_qty, "w": 80.0, "d": 60.0, "l": tb_l, "t": tb_t})
 
     st.markdown('<span class="col-label">Back Pallet Stoppers</span>', unsafe_allow_html=True)
@@ -1430,7 +1532,7 @@ acc_data = {
 
 st.divider()
 
-# ── Live Preview Metrics ───────────────────────────────────────────────────────
+# ── Live Preview ──────────────────────────────────────────────────────────────
 if rack_data:
     comp0  = calc_components(rack_data[0])
     all_wt = sum(
@@ -1442,41 +1544,56 @@ if rack_data:
     prev_gst   = prev_tot * 0.18
     prev_grand = prev_tot + prev_gst
 
-    st.markdown('<div class="preview-bar"><p>📊 &nbsp; Live Estimate Preview</p></div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="preview-bar">
+      <div>
+        <p class="preview-bar-label">📊 &nbsp; Live Estimate Preview</p>
+        <p class="preview-bar-sub">Updates as you change inputs</p>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     p1, p2, p3, p4, p5, p6 = st.columns(6)
-    p1.metric("Main Rack Wt (Module 1)",   f"{comp0['total_main']:.3f} kg")
-    p2.metric("Add-on Rack Wt (Module 1)", f"{comp0['total_addon']:.3f} kg")
-    p3.metric("Total Tonnage",             f"{all_wt/1000:.3f} MT")
-    p4.metric("Basic Amount",              f"Rs. {prev_tot:,.0f}")
-    p5.metric("GST  (18%)",                f"Rs. {prev_gst:,.0f}")
-    p6.metric("Grand Total",               f"Rs. {prev_grand:,.0f}")
+    p1.metric("Main Rack Wt (Mod 1)",   f"{comp0['total_main']:.3f} kg")
+    p2.metric("Add-on Wt (Mod 1)",      f"{comp0['total_addon']:.3f} kg")
+    p3.metric("Total Tonnage",          f"{all_wt/1000:.3f} MT")
+    p4.metric("Basic Amount",           f"Rs. {prev_tot:,.0f}")
+    p5.metric("GST  (18%)",             f"Rs. {prev_gst:,.0f}")
+    p6.metric("Grand Total",            f"Rs. {prev_grand:,.0f}")
 
 st.divider()
 
 # ── Generate Button ───────────────────────────────────────────────────────────
+st.markdown("""
+<div class="section-header">
+  <span class="section-header-text">🐬 Generate Documents</span>
+  <span class="section-pill">Step 4</span>
+</div>
+""", unsafe_allow_html=True)
+
 if st.button("🐬  GENERATE  QUOTATION  +  BOM", type="primary", use_container_width=True):
     safe  = client.replace(" ", "_").replace("/", "-")
-    fname = f"{safe}_Offer_{offer_no.replace('/', '-')}.xlsx"
+    fname = f"DSS_{safe}_Offer_{offer_no.replace('/', '-')}.xlsx"
     out   = os.path.join(tempfile.gettempdir(), fname)
 
     try:
-        basic, gst, grand = build_excel(
+        basic, gst_amt, grand = build_excel(
             client, product, offer_no, date, project_name,
             rack_data, rate_per_kg, acc_data=acc_data,
             out_path=out, logo_path=logo_path
         )
-        st.success("✅  Workbook ready — Commercial Offer + Bill of Materials sheets generated.")
+        st.success("✅  DSS Workbook ready — Commercial Offer + Bill of Materials sheets generated.")
         with open(out, "rb") as f:
             st.download_button(
-                "⬇️  DOWNLOAD  EXCEL  (Quotation + BOM)",
+                "⬇️  DOWNLOAD  DSS EXCEL  (Quotation + BOM)",
                 data=f, file_name=fname,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )
         r1, r2, r3 = st.columns(3)
-        r1.metric("Basic Amount", f"Rs. {basic:,.2f}")
-        r2.metric("GST (18%)",    f"Rs. {gst:,.2f}")
-        r3.metric("Grand Total",  f"Rs. {grand:,.2f}", delta="Incl. GST")
+        r1.metric("Basic Amount",  f"Rs. {basic:,.2f}")
+        r2.metric("GST (18%)",     f"Rs. {gst_amt:,.2f}")
+        r3.metric("Grand Total",   f"Rs. {grand:,.2f}", delta="Incl. GST")
     except Exception as e:
         st.error(f"❌  Error generating file: {e}")
         raise
