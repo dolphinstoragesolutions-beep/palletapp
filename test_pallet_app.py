@@ -144,7 +144,9 @@ def calc_components(rack):
 
     area_m2        = (bl / 1000) * (depth / 1000)
     udl_kg_m2      = 500
-    load_per_level = round(udl_kg_m2 * area_m2, 1)
+    load_per_level = round(udl_kg_m2 * area_m2, 1)   # total load on the level in kg
+    pallets        = max(1, int(bl / 1200))
+    load_per_pallet = round(load_per_level / pallets, 1)  # NEW: load per pallet
 
     return {
         "uwid": round(uwid, 1), "ul": ul, "ut": ut,
@@ -169,6 +171,8 @@ def calc_components(rack):
         "area_m2": round(area_m2, 3),
         "udl_kg_m2": udl_kg_m2,
         "load_per_level": load_per_level,
+        "load_per_pallet": load_per_pallet,
+        "pallets": pallets,
     }
 
 
@@ -258,6 +262,105 @@ def calc_accessories_quotation(acc_data, rack_data):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  ATTRACTIVE HEADER BUILDER  (shared by both sheets)
+#  Layout: [LOGO zone left] | [BRIJ INDUSTRIES big center] | [doc type right]
+#  Row structure:
+#    R+0 : thin orange top stripe
+#    R+1 : tall row — logo anchor + company name center + doc title right
+#    R+2 : sub-brand "DOLPHIN STORAGE SOLUTIONS" + address strip
+#    R+3 : thin orange bottom stripe
+# ═══════════════════════════════════════════════════════════════════════════════
+def build_header(ws, last_col, doc_title_text, logo_path=None, start_row=1):
+    R = start_row
+
+    # ── Top orange stripe ─────────────────────────────────────────────────────
+    set_row_h(ws, R, 7)
+    fill(ws, R, 1, last_col, ORANGE)
+    R += 1
+
+    # ── Main header row ───────────────────────────────────────────────────────
+    set_row_h(ws, R, 62)
+
+    # Full-width navy background
+    for col in range(1, last_col + 1):
+        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=NAVY)
+
+    # Logo zone: cols 1-3 (left)
+    if logo_path and os.path.exists(logo_path):
+        try:
+            img = XLImage(logo_path)
+            img.width = 100; img.height = 52
+            img.anchor = f"B{R}"
+            ws.add_image(img)
+        except Exception:
+            pass
+
+    # CENTER: "BRIJ INDUSTRIES" — large, orange, center of sheet
+    # Use middle columns for centering
+    mid_start = 4
+    mid_end   = last_col - 2
+    mg(ws, R, mid_start, R, mid_end)
+    c_bi = ws.cell(row=R, column=mid_start)
+    c_bi.value = "BRIJ INDUSTRIES"
+    c_bi.font = Font(name="Arial", size=28, bold=True, color=ORANGE)
+    c_bi.alignment = Alignment(horizontal="center", vertical="center", indent=0)
+    c_bi.fill = PatternFill("solid", fgColor=NAVY)
+
+    # RIGHT: Doc type badge (orange panel)
+    right_col = last_col - 1
+    mg(ws, R, right_col, R, last_col)
+    c_dt = ws.cell(row=R, column=right_col)
+    c_dt.value = doc_title_text
+    c_dt.font = Font(name="Arial", size=8, bold=True, color=NAVY)
+    c_dt.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    c_dt.fill = PatternFill("solid", fgColor=ORANGE)
+    R += 1
+
+    # ── Sub-brand row ─────────────────────────────────────────────────────────
+    set_row_h(ws, R, 20)
+    for col in range(1, last_col + 1):
+        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=NAVY_MID)
+
+    # "DSS" badge in logo zone
+    mg(ws, R, 2, R, 3)
+    c_dss = ws.cell(row=R, column=2)
+    c_dss.value = "DSS"
+    c_dss.font = Font(name="Arial", size=13, bold=True, color=ORANGE)
+    c_dss.alignment = Alignment(horizontal="center", vertical="center")
+    c_dss.fill = PatternFill("solid", fgColor=NAVY_MID)
+
+    # "DOLPHIN STORAGE SOLUTIONS" center
+    mg(ws, R, mid_start, R, mid_end)
+    c_dss2 = ws.cell(row=R, column=mid_start)
+    c_dss2.value = "DOLPHIN  STORAGE  SOLUTIONS"
+    c_dss2.font = Font(name="Arial", size=11, bold=True, color="A8CCF0")
+    c_dss2.alignment = Alignment(horizontal="center", vertical="center", indent=0)
+    c_dss2.fill = PatternFill("solid", fgColor=NAVY_MID)
+
+    # Right: orange accent
+    mg(ws, R, right_col, R, last_col)
+    c_acc = ws.cell(row=R, column=right_col)
+    c_acc.fill = PatternFill("solid", fgColor=ORANGE_DARK)
+    R += 1
+
+    # ── Contact strip ─────────────────────────────────────────────────────────
+    set_row_h(ws, R, 14)
+    fill(ws, R, 1, last_col, NAVY_MID)
+    mg(ws, R, 2, R, last_col - 1)
+    W(ws, R, 2,
+      "86/3/1 Road No 7, Mundka Industrial Area, New Delhi – 110041   |   GST: 07AAMFB6403G1ZM   |   +91 9625589161 / 9811096149   |   brijindustries09@rediffmail.com",
+      sz=7.5, color="A8CCF0", bg=NAVY_MID, ha="center", italic=True)
+    R += 1
+
+    # ── Bottom orange stripe ──────────────────────────────────────────────────
+    set_row_h(ws, R, 5)
+    fill(ws, R, 1, last_col, ORANGE)
+    R += 1
+
+    return R   # next free row
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  SHEET 1 — COMMERCIAL OFFER
 # ═══════════════════════════════════════════════════════════════════════════════
 def build_quotation_sheet(ws, client, product, offer_no, date_obj,
@@ -272,89 +375,11 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     for col, w in col_w.items():
         ws.column_dimensions[get_column_letter(col)].width = w
 
-    R = 1
+    # ── Attractive header ──────────────────────────────────────────────────────
+    R = build_header(ws, last_col=12,
+                     doc_title_text="COMMERCIAL\nOFFER",
+                     logo_path=logo_path, start_row=1)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  HEADER  —  LEFT: DSS brand  |  RIGHT: BRIJ INDUSTRIES + document title
-    #  (reference-image style: brand on left, company/doc on right)
-    # ══════════════════════════════════════════════════════════════════════════
-
-    # ── Top orange accent bar ─────────────────────────────────────────────────
-    set_row_h(ws, R, 7); fill(ws, R, 1, 12, ORANGE); R += 1
-
-    # ── ROW A  (tall)  ·  DSS left  |  BRIJ INDUSTRIES right ────────────────
-    #    Cols 2-6 = LEFT panel (NAVY)
-    #    Cols 7-11 = RIGHT panel (ORANGE)
-    set_row_h(ws, R, 54)
-
-    # Left panel background
-    for col in range(1, 7):
-        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=NAVY)
-
-    # Right panel background (orange, like reference image's quotation block)
-    for col in range(7, 13):
-        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=ORANGE)
-
-    # Logo (placed top-left of header)
-    if logo_path and os.path.exists(logo_path):
-        try:
-            img = XLImage(logo_path)
-            img.width = 110; img.height = 42
-            img.anchor = f"B{R}"
-            ws.add_image(img)
-        except Exception:
-            pass
-
-    # LEFT: DSS — large, orange
-    mg(ws, R, 3, R, 6)
-    c_dss = ws.cell(row=R, column=3)
-    c_dss.value = "DSS"
-    c_dss.font = Font(name="Arial", size=36, bold=True, color=ORANGE)
-    c_dss.alignment = Alignment(horizontal="left", vertical="center", indent=1)
-    c_dss.fill = PatternFill("solid", fgColor=NAVY)
-
-    # RIGHT: BRIJ INDUSTRIES — white bold, right-aligned, in orange panel
-    mg(ws, R, 7, R, 11)
-    c_bi = ws.cell(row=R, column=7)
-    c_bi.value = "BRIJ INDUSTRIES"
-    c_bi.font = Font(name="Arial", size=20, bold=True, color=NAVY)
-    c_bi.alignment = Alignment(horizontal="right", vertical="center", indent=1)
-    c_bi.fill = PatternFill("solid", fgColor=ORANGE)
-    R += 1
-
-    # ── ROW B  ·  Dolphin Storage Solutions left  |  COMMERCIAL OFFER right ──
-    set_row_h(ws, R, 22)
-
-    for col in range(1, 7):
-        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=NAVY_MID)
-    for col in range(7, 13):
-        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=ORANGE_DARK)
-
-    mg(ws, R, 2, R, 6)
-    c_sub = ws.cell(row=R, column=2)
-    c_sub.value = "DOLPHIN  STORAGE  SOLUTIONS"
-    c_sub.font = Font(name="Arial", size=9, bold=True, color="C8DFF0")
-    c_sub.alignment = Alignment(horizontal="left", vertical="center", indent=2)
-    c_sub.fill = PatternFill("solid", fgColor=NAVY_MID)
-
-    mg(ws, R, 7, R, 11)
-    c_co = ws.cell(row=R, column=7)
-    c_co.value = "C O M M E R C I A L   O F F E R"
-    c_co.font = Font(name="Arial", size=9, bold=True, color=WHITE)
-    c_co.alignment = Alignment(horizontal="right", vertical="center", indent=1)
-    c_co.fill = PatternFill("solid", fgColor=ORANGE_DARK)
-    R += 1
-
-    # ── Contact strip (full width) ────────────────────────────────────────────
-    set_row_h(ws, R, 14); fill(ws, R, 1, 12, NAVY_MID)
-    mg(ws, R, 2, R, 11)
-    W(ws, R, 2,
-      "86/3/1 Road No 7, Mundka Industrial Area, New Delhi – 110041   |   GST: 07AAMFB6403G1ZM   |   +91 9625589161 / 9811096149   |   brijindustries09@rediffmail.com",
-      sz=7.5, color="A8CCF0", bg=NAVY_MID, ha="center", italic=True)
-    R += 1
-
-    # ── Orange bottom bar ─────────────────────────────────────────────────────
-    set_row_h(ws, R, 5); fill(ws, R, 1, 12, ORANGE); R += 1
     set_row_h(ws, R, 8); R += 1
 
     # ── Detail pairs ──────────────────────────────────────────────────────────
@@ -391,19 +416,20 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 
     set_row_h(ws, R, 4); fill(ws, R, 2, 11, ORANGE); R += 1
 
-    # ── Technical headers — Beam Type & Upright Section REMOVED ──────────────
+    # ── Technical headers ─────────────────────────────────────────────────────
+    # CHANGE: UDL column now shows "UDL (kg)" and last column is "LOAD / PALLET (kg)"
     set_row_h(ws, R, 30); fill(ws, R, 2, 11, NAVY)
     tech_hdrs = [
-        (2,  "MODULE",             "center"),
-        (3,  "",                   "center"),   # merged with MODULE
-        (4,  "HEIGHT\n(mm)",       "center"),
-        (5,  "LENGTH\n(mm)",       "center"),
-        (6,  "DEPTH\n(mm)",        "center"),
-        (7,  "LEVELS",             "center"),
-        (8,  "UDL\n(kg/m²)",       "center"),
-        (9,  "LOAD /\nLEVEL (kg)", "center"),
-        (10, "",                   "center"),   # merged with LOAD
-        (11, "PALLETS\n/ LEVEL",   "center"),
+        (2,  "MODULE",              "center"),
+        (3,  "",                    "center"),
+        (4,  "HEIGHT\n(mm)",        "center"),
+        (5,  "LENGTH\n(mm)",        "center"),
+        (6,  "DEPTH\n(mm)",         "center"),
+        (7,  "LEVELS",              "center"),
+        (8,  "UDL\n(kg)",           "center"),   # changed from kg/m²
+        (9,  "LOAD /\nPALLET (kg)", "center"),   # changed from LOAD / LEVEL
+        (10, "",                    "center"),
+        (11, "PALLETS\n/ LEVEL",    "center"),
     ]
     for col, txt, al in tech_hdrs:
         c = ws.cell(row=R, column=col)
@@ -412,7 +438,6 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
         c.fill = PatternFill("solid", fgColor=NAVY)
         c.alignment = Alignment(horizontal=al, vertical="center", wrap_text=True)
         c.border = b_thin(NAVY_MID)
-    # Merge MODULE and LOAD headers for cleaner look
     mg(ws, R, 2, R, 3)
     mg(ws, R, 9, R, 10)
     R += 1
@@ -429,10 +454,10 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
         W(ws, R, 5, rack["bl"],     sz=9, bg=bg, ha="center", bdr=b_thin())
         W(ws, R, 6, rack["depth"],  sz=9, bg=bg, ha="center", bdr=b_thin())
         W(ws, R, 7, rack["levels"], sz=9, bg=bg, ha="center", bdr=b_thin())
-        W(ws, R, 8, comp["udl_kg_m2"], sz=9, bg=bg, ha="center", bdr=b_thin())
+        W(ws, R, 8, comp["load_per_level"], sz=9, bg=bg, ha="center", bdr=b_thin(), fmt="#,##0")   # UDL now = load per level in kg
         mg(ws, R, 9, R, 10)
-        W(ws, R, 9, comp["load_per_level"], sz=9, bg=bg, ha="center", bdr=b_thin(), fmt="#,##0")
-        pallets = max(1, int(rack["bl"] / 1200))
+        W(ws, R, 9, comp["load_per_pallet"], sz=9, bg=bg, ha="center", bdr=b_thin(), fmt="#,##0") # load per pallet
+        pallets = comp["pallets"]
         W(ws, R, 11, pallets, sz=9, bg=bg, ha="center", bdr=b_thin())
         R += 1
 
@@ -588,10 +613,9 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     price_row("Erection Charges",    "Inclusive",           ORANGE_LIGHT, False, ORANGE_DARK, True)
     price_row("GST @ 18%  (Rs.)",    gst,                   WHITE,        False, MID_TEXT)
 
-    # ── Spacer before grand total ──────────────────────────────────────────────
     set_row_h(ws, R, 10); R += 1
 
-    # ── GRAND TOTAL — isolated row, no merging issue ──────────────────────────
+    # ── GRAND TOTAL ───────────────────────────────────────────────────────────
     set_row_h(ws, R, 36); fill(ws, R, 2, 11, NAVY)
     mg(ws, R, 2, R, 10)
     c = ws.cell(row=R, column=2)
@@ -599,7 +623,6 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     c.font = Font(name="Arial", size=12, bold=True, color=WHITE)
     c.alignment = Alignment(horizontal="center", vertical="center")
     c.fill = PatternFill("solid", fgColor=NAVY)
-    # Explicit border only on the merged region sides
     c.border = Border(
         left=Side(style="medium", color=ORANGE),
         top=Side(style="medium", color=ORANGE),
@@ -618,10 +641,8 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
     c_gv.number_format = 'Rs. #,##0.00'
     R += 1
 
-    # ── Spacer after grand total (prevents visual merge with next row) ─────────
     set_row_h(ws, R, 8); R += 1
 
-    # ── Orange accent bar ─────────────────────────────────────────────────────
     set_row_h(ws, R, 5); fill(ws, R, 1, 12, ORANGE); R += 1
     set_row_h(ws, R, 9); R += 1
 
@@ -708,7 +729,7 @@ def build_quotation_sheet(ws, client, product, offer_no, date_obj,
 # ═══════════════════════════════════════════════════════════════════════════════
 #  SHEET 2 — BILL OF MATERIALS
 # ═══════════════════════════════════════════════════════════════════════════════
-def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
+def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None, logo_path=None):
     ws.sheet_view.showGridLines = False
 
     col_w = {
@@ -718,66 +739,19 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
     for col, w in col_w.items():
         ws.column_dimensions[get_column_letter(col)].width = w
 
-    R = 1
+    # ── Attractive header ──────────────────────────────────────────────────────
+    R = build_header(ws, last_col=13,
+                     doc_title_text="BILL OF\nMATERIALS",
+                     logo_path=logo_path, start_row=1)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  BOM HEADER  —  LEFT: DSS brand  |  RIGHT: BRIJ INDUSTRIES + BOM title
-    # ══════════════════════════════════════════════════════════════════════════
-    set_row_h(ws, R, 7); fill(ws, R, 1, 13, ORANGE); R += 1
-
-    # ── ROW A  (tall)  ·  DSS left  |  BRIJ INDUSTRIES right (orange panel) ─
-    set_row_h(ws, R, 54)
-    for col in range(1, 8):
-        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=NAVY)
-    for col in range(8, 14):
-        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=ORANGE)
-
-    mg(ws, R, 2, R, 4)
-    c = ws.cell(row=R, column=2)
-    c.value = "DSS"
-    c.font = Font(name="Arial", size=36, bold=True, color=ORANGE)
-    c.alignment = Alignment(horizontal="left", vertical="center", indent=1)
-    c.fill = PatternFill("solid", fgColor=NAVY)
-
-    mg(ws, R, 8, R, 12)
-    c2 = ws.cell(row=R, column=8)
-    c2.value = "BRIJ INDUSTRIES"
-    c2.font = Font(name="Arial", size=20, bold=True, color=NAVY)
-    c2.alignment = Alignment(horizontal="right", vertical="center", indent=1)
-    c2.fill = PatternFill("solid", fgColor=ORANGE)
-    R += 1
-
-    # ── ROW B  ·  Dolphin Storage Solutions left  |  BILL OF MATERIALS right ─
-    set_row_h(ws, R, 22)
-    for col in range(1, 8):
-        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=NAVY_MID)
-    for col in range(8, 14):
-        ws.cell(row=R, column=col).fill = PatternFill("solid", fgColor=ORANGE_DARK)
-
-    mg(ws, R, 2, R, 7)
-    c = ws.cell(row=R, column=2)
-    c.value = "DOLPHIN  STORAGE  SOLUTIONS"
-    c.font = Font(name="Arial", size=9, bold=True, color="C8DFF0")
-    c.alignment = Alignment(horizontal="left", vertical="center", indent=2)
-    c.fill = PatternFill("solid", fgColor=NAVY_MID)
-
-    mg(ws, R, 8, R, 12)
-    c2 = ws.cell(row=R, column=8)
-    c2.value = "B I L L   O F   M A T E R I A L S"
-    c2.font = Font(name="Arial", size=9, bold=True, color=WHITE)
-    c2.alignment = Alignment(horizontal="right", vertical="center", indent=1)
-    c2.fill = PatternFill("solid", fgColor=ORANGE_DARK)
-    R += 1
-
-    # ── Contact / offer strip (full width) ────────────────────────────────────
+    # ── Offer strip ───────────────────────────────────────────────────────────
     set_row_h(ws, R, 14); fill(ws, R, 1, 13, NAVY_MID)
     mg(ws, R, 2, R, 12)
     W(ws, R, 2,
-      f"Offer No: {offer_no}   |   Customer: {client}   |   Date: {date_obj.strftime('%d %B %Y')}   |   86/3/1 Road No 7, Mundka Industrial Area, New Delhi",
+      f"Offer No: {offer_no}   |   Customer: {client}   |   Date: {date_obj.strftime('%d %B %Y')}",
       sz=8, color="A8CCF0", bg=NAVY_MID, ha="center")
     R += 1
 
-    set_row_h(ws, R, 5); fill(ws, R, 1, 13, ORANGE); R += 1
     set_row_h(ws, R, 7); R += 1
 
     grand_main_wt  = 0.0
@@ -812,7 +786,7 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
             (9,  "QTY /\nADD-ON",        "center"),
             (10, "MAIN\nTOTAL (kg)",     "center"),
             (11, "ADD-ON\nTOTAL (kg)",   "center"),
-            (12, "LOAD /\nLEVEL (kg)",   "center"),
+            (12, "LOAD /\nPALLET (kg)",  "center"),   # changed from LEVEL
         ]
         for col, txt, al in BOM_H:
             c = ws.cell(row=R, column=col)
@@ -824,7 +798,7 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
         R += 1
 
         def comp_row(sr_n, comp_name, section, length, thick, wt_each,
-                     qty_main, qty_addon, load_level_val, bg):
+                     qty_main, qty_addon, load_pallet_val, bg):
             nonlocal R
             set_row_h(ws, R, 20)
             fill(ws, R, 2, 12, bg, b_thin())
@@ -841,7 +815,7 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
                 (9,  qty_addon,        "center", None),
                 (10, main_tot,         "right",  "#,##0.000"),
                 (11, addon_tot,        "right",  "#,##0.000"),
-                (12, load_level_val,   "center", "#,##0"),
+                (12, load_pallet_val,  "center", "#,##0"),
             ]
             for col, val, al, nf in row_vals:
                 c = ws.cell(row=R, column=col)
@@ -866,7 +840,7 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
 
         comp_row(2, f"Beam  [2 x {rack['levels']} levels = {comp['beam_per_rack']} per rack]",
                  beam_sec, rack["bl"], rack["bth"], comp["b_wt"],
-                 comp["b_main_qty"], comp["b_addon_qty"], comp["load_per_level"], ROW_ALT)
+                 comp["b_main_qty"], comp["b_addon_qty"], comp["load_per_pallet"], ROW_ALT)
 
         comp_row(3, "Deep Bar (Shelf Support)",
                  "92 mm flat", int(comp["dlen"]), rack["dth"], comp["d_wt"],
@@ -981,7 +955,7 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
         (8,  "ALL ADD-ON RACKS\nWT (kg)", "center"),
         (10, "COMBINED\nWT (kg)",         "center"),
         (11, "COMBINED\nWT (MT)",         "center"),
-        (12, "LOAD /\nLEVEL (kg)",        "center"),
+        (12, "LOAD /\nPALLET (kg)",       "center"),   # changed
     ]
     for col, txt, al in ton_hdrs:
         c = ws.cell(row=R, column=col)
@@ -1007,7 +981,7 @@ def build_bom_sheet(ws, client, offer_no, date_obj, rack_data, acc_data=None):
         W(ws, R, 8,  a_wt,               sz=9, bg=bg, ha="right", fmt="#,##0.00",  bdr=b_thin())
         W(ws, R, 10, comb,               sz=9, bg=bg, ha="right", fmt="#,##0.00",  bdr=b_thin())
         W(ws, R, 11, round(comb/1000,3), sz=9, bg=bg, ha="right", fmt="#,##0.000", bdr=b_thin())
-        W(ws, R, 12, comp["load_per_level"], sz=9, bg=bg, ha="center", fmt="#,##0", bdr=b_thin())
+        W(ws, R, 12, comp["load_per_pallet"], sz=9, bg=bg, ha="center", fmt="#,##0", bdr=b_thin())
         R += 1
 
     grand_comb = round(grand_main_wt + grand_addon_wt, 2)
@@ -1062,14 +1036,14 @@ def build_excel(client, product, offer_no, date_obj, project_name,
         ws_q, client, product, offer_no, date_obj,
         project_name, rack_data, rate_per_kg, acc_data, logo_path
     )
-    build_bom_sheet(ws_b, client, offer_no, date_obj, rack_data, acc_data)
+    build_bom_sheet(ws_b, client, offer_no, date_obj, rack_data, acc_data, logo_path)
 
     wb.save(out_path)
     return total_basic, gst, grand
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  STREAMLIT UI  —  DSS-forward redesign
+#  STREAMLIT UI
 # ═══════════════════════════════════════════════════════════════════════════════
 st.set_page_config(page_title="DSS Quotation Generator", layout="wide", page_icon="🐬")
 
@@ -1078,13 +1052,10 @@ st.markdown("""
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
   html, body, [class*="css"] { font-family: 'Inter', Arial, sans-serif; }
 
-  /* ── Background ── */
   .stApp { background: #eef2f7; }
   section[data-testid="stSidebar"] { display: none; }
 
-  /* ══════════════════════════════════════════════
-     HERO  —  DSS is the star
-  ══════════════════════════════════════════════ */
+  /* ══ HERO ══ */
   .hero-wrap {
       background: linear-gradient(150deg, #071420 0%, #0D2137 45%, #0a1c30 100%);
       border-radius: 20px;
@@ -1093,151 +1064,86 @@ st.markdown("""
       overflow: hidden;
       position: relative;
   }
-  .hero-top-stripe {
-      height: 7px;
-      background: linear-gradient(90deg, #E87722, #ff9a45, #E87722);
+  .hero-top-stripe { height: 7px; background: linear-gradient(90deg, #E87722, #ff9a45, #E87722); }
+  .hero-body { padding: 32px 48px 26px; display: flex; align-items: center; gap: 40px; }
+  .hero-logo-zone {
+      flex: 0 0 110px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.06);
+      border-radius: 14px;
+      padding: 14px;
+      border: 1px solid rgba(232,119,34,0.25);
+      min-height: 80px;
   }
-  .hero-body {
-      padding: 36px 48px 30px;
-      display: flex;
-      align-items: center;
-      gap: 36px;
+  .hero-logo-placeholder {
+      font-size: 2.2rem; line-height: 1;
   }
-  .hero-left {
-      flex: 0 0 auto;
-      border-right: 2px solid rgba(232,119,34,0.35);
-      padding-right: 36px;
+  .hero-center { flex: 1; text-align: center; }
+  .hero-company-name {
+      font-size: 2.4rem; font-weight: 900; color: #FFFFFF;
+      letter-spacing: 6px; text-transform: uppercase;
+      line-height: 1.1; margin: 0 0 6px;
   }
-  .hero-dss-text {
-      font-size: 5.8rem;
-      font-weight: 900;
-      color: #E87722;
-      letter-spacing: 10px;
-      line-height: 1;
-      margin: 0;
-      text-shadow: 0 0 60px rgba(232,119,34,0.30);
+  .hero-brand-sub {
+      font-size: 1.05rem; font-weight: 600; color: #E87722;
+      letter-spacing: 5px; text-transform: uppercase; margin: 0 0 14px;
   }
-  .hero-right {
-      flex: 1;
-      text-align: left;
+  .hero-divider {
+      width: 60px; height: 3px;
+      background: linear-gradient(90deg, transparent, #E87722, transparent);
+      margin: 10px auto 14px;
+      border-radius: 2px;
   }
-  .hero-brand-full {
-      font-size: 1.35rem;
-      font-weight: 700;
-      color: #FFFFFF;
-      letter-spacing: 4px;
-      text-transform: uppercase;
-      margin: 0 0 8px;
-  }
-  .hero-company {
-      font-size: 0.88rem;
-      font-weight: 500;
-      color: #8AAECF;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      margin: 0 0 14px;
-  }
-  .hero-tag-row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-  }
+  .hero-tag-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
   .hero-tag {
       display: inline-block;
       background: rgba(232,119,34,0.15);
       border: 1px solid rgba(232,119,34,0.40);
-      color: #E87722;
-      font-size: 0.70rem;
-      font-weight: 700;
-      letter-spacing: 2px;
-      padding: 5px 14px;
-      border-radius: 20px;
-      text-transform: uppercase;
+      color: #E87722; font-size: 0.70rem; font-weight: 700;
+      letter-spacing: 2px; padding: 5px 14px;
+      border-radius: 20px; text-transform: uppercase;
   }
   .hero-tag-blue {
       background: rgba(46,109,164,0.20);
-      border: 1px solid rgba(46,109,164,0.40);
-      color: #7eb8e8;
+      border: 1px solid rgba(46,109,164,0.40); color: #7eb8e8;
   }
-  .hero-bottom-stripe {
-      height: 5px;
-      background: linear-gradient(90deg, #E87722, #ff9a45, #E87722);
+  .hero-right { flex: 0 0 auto; text-align: right; }
+  .hero-address {
+      font-size: 0.72rem; color: #6A8FAA; line-height: 1.6;
+      font-style: italic;
   }
+  .hero-bottom-stripe { height: 5px; background: linear-gradient(90deg, #E87722, #ff9a45, #E87722); }
 
-  /* ══════════════════════════════════════════════
-     SECTION HEADERS
-  ══════════════════════════════════════════════ */
-  h2 {
-      color: #0D2137 !important;
-      font-weight: 800 !important;
-      letter-spacing: 0.3px !important;
-      font-size: 1.05rem !important;
-  }
+  /* ══ SECTION HEADERS ══ */
   .section-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 16px;
-      padding-bottom: 10px;
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 16px; padding-bottom: 10px;
       border-bottom: 2px solid #E87722;
   }
-  .section-header-text {
-      font-size: 1.05rem;
-      font-weight: 800;
-      color: #0D2137;
-      letter-spacing: 0.3px;
-  }
+  .section-header-text { font-size: 1.05rem; font-weight: 800; color: #0D2137; letter-spacing: 0.3px; }
   .section-pill {
-      background: #0D2137;
-      color: #E87722;
-      font-size: 0.65rem;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-      padding: 3px 10px;
-      border-radius: 20px;
-      text-transform: uppercase;
+      background: #0D2137; color: #E87722;
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 1.5px;
+      padding: 3px 10px; border-radius: 20px; text-transform: uppercase;
   }
 
-  /* ══════════════════════════════════════════════
-     CARDS
-  ══════════════════════════════════════════════ */
+  /* ══ CARDS ══ */
   .glass-card {
-      background: #ffffff;
-      border-radius: 16px;
-      padding: 24px 26px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 16px rgba(13,33,55,0.07);
+      background: #ffffff; border-radius: 16px; padding: 24px 26px;
+      margin-bottom: 20px; box-shadow: 0 2px 16px rgba(13,33,55,0.07);
       border-top: 4px solid #E87722;
   }
 
-  /* ══════════════════════════════════════════════
-     INPUTS
-  ══════════════════════════════════════════════ */
-  input, select, textarea {
-      border-radius: 10px !important;
-      border-color: #C8DFF0 !important;
-  }
-  input:focus, select:focus {
-      border-color: #E87722 !important;
-      box-shadow: 0 0 0 3px rgba(232,119,34,0.16) !important;
-  }
-  label {
-      color: #1A3A5C !important;
-      font-weight: 600 !important;
-      font-size: 0.82rem !important;
-      letter-spacing: 0.2px !important;
-  }
+  /* ══ INPUTS ══ */
+  input, select, textarea { border-radius: 10px !important; border-color: #C8DFF0 !important; }
+  input:focus, select:focus { border-color: #E87722 !important; box-shadow: 0 0 0 3px rgba(232,119,34,0.16) !important; }
+  label { color: #1A3A5C !important; font-weight: 600 !important; font-size: 0.82rem !important; letter-spacing: 0.2px !important; }
 
-  /* ══════════════════════════════════════════════
-     EXPANDERS
-  ══════════════════════════════════════════════ */
+  /* ══ EXPANDERS ══ */
   .streamlit-expanderHeader {
-      background: #EAF2FB !important;
-      border-left: 4px solid #E87722 !important;
-      border-radius: 12px !important;
-      font-weight: 700 !important;
-      color: #0D2137 !important;
-      font-size: 0.90rem !important;
+      background: #EAF2FB !important; border-left: 4px solid #E87722 !important;
+      border-radius: 12px !important; font-weight: 700 !important;
+      color: #0D2137 !important; font-size: 0.90rem !important;
   }
   .streamlit-expanderContent {
       background: #f6f9fd !important;
@@ -1245,166 +1151,101 @@ st.markdown("""
       border-radius: 0 0 12px 12px !important;
   }
 
-  /* ══════════════════════════════════════════════
-     METRIC CARDS
-  ══════════════════════════════════════════════ */
+  /* ══ METRIC CARDS ══ */
   [data-testid="metric-container"] {
       background: linear-gradient(135deg, #ffffff 0%, #EAF2FB 100%);
-      border: 1px solid #C8DFF0;
-      border-top: 4px solid #E87722;
-      border-radius: 14px;
-      padding: 18px 16px !important;
+      border: 1px solid #C8DFF0; border-top: 4px solid #E87722;
+      border-radius: 14px; padding: 18px 16px !important;
       box-shadow: 0 4px 16px rgba(13,33,55,0.08);
       transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
-  [data-testid="metric-container"]:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 24px rgba(13,33,55,0.14);
-  }
-  [data-testid="metric-container"] label {
-      color: #1A3A5C !important;
-      font-weight: 700 !important;
-      font-size: 0.75rem !important;
-      text-transform: uppercase !important;
-      letter-spacing: 0.5px !important;
-  }
-  [data-testid="metric-container"] [data-testid="metric-value"] {
-      color: #0D2137 !important;
-      font-size: 1.15rem !important;
-      font-weight: 900 !important;
-  }
+  [data-testid="metric-container"]:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(13,33,55,0.14); }
+  [data-testid="metric-container"] label { color: #1A3A5C !important; font-weight: 700 !important; font-size: 0.75rem !important; text-transform: uppercase !important; letter-spacing: 0.5px !important; }
+  [data-testid="metric-container"] [data-testid="metric-value"] { color: #0D2137 !important; font-size: 1.15rem !important; font-weight: 900 !important; }
 
-  /* ══════════════════════════════════════════════
-     LIVE PREVIEW BAR
-  ══════════════════════════════════════════════ */
+  /* ══ PREVIEW BAR ══ */
   .preview-bar {
       background: linear-gradient(135deg, #0D2137 0%, #1A3A5C 100%);
-      border-radius: 14px;
-      padding: 14px 24px;
-      margin: 4px 0 20px;
-      border-left: 5px solid #E87722;
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      border-radius: 14px; padding: 14px 24px; margin: 4px 0 20px;
+      border-left: 5px solid #E87722; display: flex; align-items: center; gap: 12px;
   }
-  .preview-bar-label {
-      color: #E87722;
-      font-size: 0.75rem;
-      font-weight: 800;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      margin: 0;
-  }
-  .preview-bar-sub {
-      color: #6A8FAA;
-      font-size: 0.72rem;
-      margin: 2px 0 0;
-  }
+  .preview-bar-label { color: #E87722; font-size: 0.75rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
+  .preview-bar-sub { color: #6A8FAA; font-size: 0.72rem; margin: 2px 0 0; }
 
-  /* ══════════════════════════════════════════════
-     COLUMN LABELS
-  ══════════════════════════════════════════════ */
+  /* ══ COLUMN LABELS ══ */
   .col-label {
       background: linear-gradient(135deg, #0D2137, #1A3A5C);
-      color: #E87722;
-      font-size: 0.68rem;
-      font-weight: 800;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      padding: 5px 13px;
-      border-radius: 8px;
-      display: inline-block;
-      margin-bottom: 12px;
+      color: #E87722; font-size: 0.68rem; font-weight: 800;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      padding: 5px 13px; border-radius: 8px; display: inline-block; margin-bottom: 12px;
   }
 
-  /* ══════════════════════════════════════════════
-     ACCESSORIES BANNER
-  ══════════════════════════════════════════════ */
+  /* ══ ACC BANNER ══ */
   .acc-banner {
       background: linear-gradient(90deg, #EAF2FB 0%, #f8fbff 100%);
-      border-left: 5px solid #E87722;
-      padding: 12px 20px;
-      border-radius: 10px;
-      margin-bottom: 16px;
-      color: #1A3A5C;
-      font-weight: 500;
-      font-size: 0.86rem;
+      border-left: 5px solid #E87722; padding: 12px 20px;
+      border-radius: 10px; margin-bottom: 16px;
+      color: #1A3A5C; font-weight: 500; font-size: 0.86rem;
   }
 
-  /* ══════════════════════════════════════════════
-     GENERATE BUTTON
-  ══════════════════════════════════════════════ */
+  /* ══ BUTTONS ══ */
   .stButton > button {
       background: linear-gradient(135deg, #0D2137 0%, #1A3A5C 100%) !important;
-      color: #E87722 !important;
-      font-weight: 800 !important;
-      border: 2px solid #E87722 !important;
-      border-radius: 14px !important;
-      padding: 18px 32px !important;
-      font-size: 1.05rem !important;
-      letter-spacing: 2px !important;
-      transition: all 0.22s ease !important;
+      color: #E87722 !important; font-weight: 800 !important;
+      border: 2px solid #E87722 !important; border-radius: 14px !important;
+      padding: 18px 32px !important; font-size: 1.05rem !important;
+      letter-spacing: 2px !important; transition: all 0.22s ease !important;
       box-shadow: 0 6px 24px rgba(13,33,55,0.30) !important;
   }
   .stButton > button:hover {
       background: linear-gradient(135deg, #E87722 0%, #B85C0A 100%) !important;
-      color: #FFFFFF !important;
-      transform: translateY(-3px) !important;
-      box-shadow: 0 10px 32px rgba(232,119,34,0.50) !important;
-      border-color: transparent !important;
+      color: #FFFFFF !important; transform: translateY(-3px) !important;
+      box-shadow: 0 10px 32px rgba(232,119,34,0.50) !important; border-color: transparent !important;
   }
-
-  /* ══════════════════════════════════════════════
-     DOWNLOAD BUTTON
-  ══════════════════════════════════════════════ */
   [data-testid="stDownloadButton"] button {
       background: linear-gradient(135deg, #E87722 0%, #B85C0A 100%) !important;
-      color: white !important;
-      border: none !important;
-      border-radius: 14px !important;
-      font-weight: 800 !important;
-      font-size: 1.02rem !important;
-      padding: 16px 28px !important;
-      box-shadow: 0 6px 22px rgba(232,119,34,0.45) !important;
-      transition: all 0.22s ease !important;
+      color: white !important; border: none !important; border-radius: 14px !important;
+      font-weight: 800 !important; font-size: 1.02rem !important; padding: 16px 28px !important;
+      box-shadow: 0 6px 22px rgba(232,119,34,0.45) !important; transition: all 0.22s ease !important;
   }
   [data-testid="stDownloadButton"] button:hover {
       background: linear-gradient(135deg, #ff9a45 0%, #E87722 100%) !important;
-      transform: translateY(-3px) !important;
-      box-shadow: 0 10px 30px rgba(232,119,34,0.60) !important;
+      transform: translateY(-3px) !important; box-shadow: 0 10px 30px rgba(232,119,34,0.60) !important;
   }
 
-  /* ══════════════════════════════════════════════
-     ALERTS & DIVIDER
-  ══════════════════════════════════════════════ */
   hr { border-color: #E87722 !important; border-width: 1.5px !important; opacity: 0.18; }
-  .stSuccess {
-      border-left: 5px solid #E87722 !important;
-      background: #FEF0E4 !important;
-      border-radius: 12px !important;
-  }
+  .stSuccess { border-left: 5px solid #E87722 !important; background: #FEF0E4 !important; border-radius: 12px !important; }
   .stInfo    { border-left: 5px solid #1A3A5C !important; border-radius: 12px !important; }
   .stError   { border-radius: 12px !important; }
 </style>
 """, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  HERO  —  DSS front and centre
+#  HERO  —  Brij Industries front and centre
 # ═══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
 <div class="hero-wrap">
   <div class="hero-top-stripe"></div>
   <div class="hero-body">
-    <div class="hero-left">
-      <div class="hero-dss-text">DSS</div>
+    <div class="hero-logo-zone">
+      <div class="hero-logo-placeholder">🐬</div>
     </div>
-    <div class="hero-right">
-      <div class="hero-brand-full">Dolphin Storage Solutions</div>
-      <div class="hero-company">🏭 &nbsp; BRIJ INDUSTRIES &nbsp;·&nbsp; Mundka Industrial Area, New Delhi</div>
+    <div class="hero-center">
+      <div class="hero-company-name">BRIJ INDUSTRIES</div>
+      <div class="hero-divider"></div>
+      <div class="hero-brand-sub">Dolphin Storage Solutions</div>
       <div class="hero-tag-row">
         <span class="hero-tag">Quotation Generator</span>
         <span class="hero-tag hero-tag-blue">Modular Racking Systems</span>
         <span class="hero-tag hero-tag-blue">Mezzanine Floors</span>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="hero-address">
+        86/3/1 Road No 7<br>
+        Mundka Industrial Area<br>
+        New Delhi – 110041<br>
+        +91 9625589161
       </div>
     </div>
   </div>
@@ -1413,7 +1254,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Logo upload ───────────────────────────────────────────────────────────────
-with st.expander("🖼️  Upload Company Logo  (optional)", expanded=False):
+with st.expander("🖼️  Upload Company Logo  (optional — embeds into Excel header)", expanded=False):
     logo_file = st.file_uploader("Upload logo PNG / JPG", type=["png", "jpg", "jpeg"])
 
 logo_path = None
@@ -1421,7 +1262,7 @@ if logo_file:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tf:
         tf.write(logo_file.read())
         logo_path = tf.name
-    st.success(f"✅  Logo uploaded: {logo_file.name}")
+    st.success(f"✅  Logo uploaded: {logo_file.name}  — will appear in the Excel header on the left.")
 
 # ── Customer & Offer Details ──────────────────────────────────────────────────
 st.markdown("""
